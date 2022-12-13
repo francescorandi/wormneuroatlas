@@ -1,7 +1,8 @@
-import numpy as np
+import numpy as np, json
+import wormneuroatlas as wa
 
 class NeuroAtlas:
-    fname_neuron_ids = "aconnectome_ids.txt"
+    fname_neuron_ids = "neuron_ids.txt"
     '''Name of file containing full list of neurons'''
     fname_ganglia = "aconnectome_ids_ganglia.json"
     '''Name of the file containing the list of neurons divided in ganglia'''
@@ -13,14 +14,18 @@ class NeuroAtlas:
     '''Name of the file containing the expression levels of neuropeptides'''
     fname_neuropeptide_receptors = "GenesExpressing-neuropeptide-receptors.csv"
     '''Name of the file containing the expression levels of neuropeptide receptors'''
-    module_folder = "/".join(pp.__file__.split("/")[:-1])+"/"
+    module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
     '''Folder of the pumpprobe module'''
     
     aconn_sources = [
-                     {"type": "whiteA", "fname": "aconnectome_white_1986_whole.csv"},
-                     {"type": "whiteL4", "fname": "aconnectome_white_1986_L4.csv"},
-                     {"type": "witvliet", "fname": "aconnectome_witvliet_2020_7.csv"},
-                     {"type": "witvliet", "fname": "aconnectome_witvliet_2020_8.csv"}
+                     {"type": "whiteA", 
+                     "fname": "aconnectome_white_1986_whole.csv"},
+                     {"type": "whiteL4", 
+                     "fname": "aconnectome_white_1986_L4.csv"},
+                     {"type": "witvliet", 
+                     "fname": "aconnectome_witvliet_2020_7.csv"},
+                     {"type": "witvliet", 
+                     "fname": "aconnectome_witvliet_2020_8.csv"}
                      ]
                      
     esconn_sources = [{"type": "bentley", 
@@ -58,7 +63,8 @@ class NeuroAtlas:
         # Reminder of the convention for AWCON and AWCOFF, since the anatomical
         # data has AWCL and AWCR.
         if not merge_AWC and not merge_bilateral and verbose:
-            print("Using AWCOFF->AWCL and AWCON->AWCR.")
+            print("Using AWCOFF->AWCL and AWCON->AWCR to allow comparison "+\
+                  "with the anatomical connectome.")
         if merge_numbered and verbose:
             print("Funatlas: Note that IL1 and IL2 will not be merged, as "+\
                    "well as VB1, VA1, VA11 because "+\
@@ -72,7 +78,7 @@ class NeuroAtlas:
                                 self.merge_dorsoventral,self.merge_numbered,
                                 self.merge_AWC)
         self.neuron_ids = np.unique(self.neuron_ids)
-        self.n_neurons = len(self.neuron_ids)
+        self.n_neurons = self.neuron_n = len(self.neuron_ids)
         
         # Load classifications of neurons into head and pharynx, and 
         # repeat approximation done above.
@@ -82,14 +88,14 @@ class NeuroAtlas:
                                 self.merge_dorsoventral,self.merge_numbered,
                                 self.merge_AWC)
         self.head_ids = np.unique(self.head_ids)
-        self.head_ai = self.ids_to_i(self.head_ids)
+        self.head_ai = self.ids_to_ai(self.head_ids)
         
         self.pharynx_ids = self.approximate_ids(
                                 self.pharynx_ids,self.merge_bilateral,
                                 self.merge_dorsoventral,self.merge_numbered,
                                 self.merge_AWC)
         self.pharynx_ids = np.unique(self.pharynx_ids)
-        self.pharynx_ai = self.ids_to_i(self.pharynx_ids)
+        self.pharynx_ai = self.ids_to_ai(self.pharynx_ids)
         
         # Same thing for ordering into sensory, inter, motor neurons
         self.sim, self.SIM_head_ids = self.load_sim_head()
@@ -98,10 +104,34 @@ class NeuroAtlas:
                                 self.merge_dorsoventral,self.merge_numbered,
                                 self.merge_AWC)
         self.SIM_head_ids = np.array(self.SIM_head_ids)
-        self.SIM_head_ai = self.ids_to_i(self.SIM_head_ids)
+        self.SIM_head_ai = self.ids_to_ai(self.SIM_head_ids)
         
-        self.wormbase = wna.WormBase()
-        #self.cengen = wna.Cengen()
+        self.wormbase = wa.WormBase()
+        self.cengen = wa.Cengen(wormbase=self.wormbase)
+        
+        ###########################################################
+        # Manage conversions between different styles of neuron IDs
+        ###########################################################
+        
+        # Using the function to convert CeNGEN-style neuron IDs to atlas-style
+        # IDs, build the more useful reverse lookup to get the cengen_ai from 
+        # the ai.
+        # Get all the CeNGEN-style IDs
+        cengen_ids = self.cengen.get_neuron_ids()
+        # Convert them to all the corresponding atlas-style neuron IDs
+        cengen_ids_to_atlas = self.cengen_ids_to_atlas(cengen_ids)
+        # Initialize array of cengen_ai given ai. In this way the CeNGEN 
+        # matrices can be indexed with matrix[neura.cengen_i[ai]]
+        self.cengen_i = -1*np.zeros(self.neuron_n,dtype=int)
+        
+        for ai in np.arange(self.n_neurons):
+            for ci in np.arange(len(cengen_ids_to_atlas)):
+                app_c_ids_to_atlas = self.approximate_ids(
+                                cengen_ids_to_atlas[ci],self.merge_bilateral,
+                                self.merge_dorsoventral,self.merge_numbered,
+                                self.merge_AWC)
+                if self.neuron_ids[ai] in app_c_ids_to_atlas:
+                    self.cengen_i[ai] = ci
     
     
     def approximate_ids(self,ids,merge_bilateral=True,merge_dorsoventral=True,
@@ -151,7 +181,7 @@ class NeuroAtlas:
                 if in_id in ["AWCOFF","AWCON"]:
                     # Separate treatment: The anatomical data calls them AWCL 
                     # and AWCR, not ON and OFF. Special treatment also in
-                    # self.ids_to_i().
+                    # self.ids_to_ai().
                     if merge_bilateral or merge_AWC:
                         out_id = "AWC"
                     elif not merge_AWC and not merge_bilateral:
@@ -393,7 +423,7 @@ class NeuroAtlas:
                 
         return ais_head
         
-    def cengen_ids_conversion(self,ids):
+    def cengen_ids_to_atlas(self,ids):
         '''Convert neural IDs from the CeNGEN naming convention to the 
         naming convention used in this atlas.
         
@@ -556,7 +586,7 @@ class NeuroAtlas:
             return names_out[0]
         else:
             return names_out
-            
+        
     def load_aconnectome_from_file(self,chem_th=3,gap_th=2,exclude_white=False,
                                    average=False):
         self.aconn_chem, self.aconn_gap = \
@@ -636,7 +666,7 @@ class NeuroAtlas:
             white_ids.append(neu_name)
         f.close()
         
-        a_is = self.ids_to_i(white_ids)
+        a_is = self.ids_to_ai(white_ids)
         
         for i_w in np.arange(self.n_neurons):
             a_i = a_is[i_w]
@@ -679,8 +709,8 @@ class NeuroAtlas:
             conn_n = int(sl[3])
             
             if conn_n!=0:
-                ai_from = self.ids_to_i(id_from)
-                ai_to = self.ids_to_i(id_to)
+                ai_from = self.ids_to_ai(id_from)
+                ai_to = self.ids_to_ai(id_to)
                 
                 if conn_type == "chemical":
                     chem[ai_to,ai_from] += conn_n
@@ -962,8 +992,8 @@ class NeuroAtlas:
             is True.    
         '''
                              
-        if type(i)==str: i = self.ids_to_i(i)
-        if type(j)==str: j = self.ids_to_i(j)
+        if type(i)==str: i = self.ids_to_ai(i)
+        if type(j)==str: j = self.ids_to_ai(j)
         # You could add a check with a scalar Dyson equation to see if there
         # is a path at all. You can use the effective anatomical connectivity
         # at all steps to help speed up the process.
@@ -1060,7 +1090,7 @@ class NeuroAtlas:
                 for iid in np.arange(len(ids)):
                     names = self.cengen_ids_conversion([ids[iid]])[0]
                     for name in names:
-                        aid = self.ids_to_i(name)
+                        aid = self.ids_to_ai(name)
                         if aid<0: continue
                         exp_levels[aid,il] = float(a[4+iid])
                     
@@ -1133,7 +1163,7 @@ class NeuroAtlas:
                     names = self.cengen_ids_conversion([ids[iid]])[0]
                     
                     for name in names:
-                        aid = self.ids_to_i(name)
+                        aid = self.ids_to_ai(name)
                         if aid<0: continue
                         if np.isnan(exp_levels[aid,il]):
                             exp_levels[aid,il] = float(a[4+iid])
@@ -1166,7 +1196,7 @@ class NeuroAtlas:
                     names = self.cengen_ids_conversion([ids[iid]])[0]
                     
                     for name in names:
-                        aid = self.ids_to_i(name)
+                        aid = self.ids_to_ai(name)
                         if aid<0: continue
                         if np.isnan(exp_levels[aid,il]):
                             exp_levels[aid,il] = float(a[4+iid])
@@ -1287,8 +1317,8 @@ class NeuroAtlas:
             if receptors is not None:
                 if recept not in receptors: continue
             
-            ai_from = self.ids_to_i(id_from)
-            ai_to = self.ids_to_i(id_to)
+            ai_from = self.ids_to_ai(id_from)
+            ai_to = self.ids_to_ai(id_to)
             
             esc[ai_to,ai_from] = True
                 

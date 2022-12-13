@@ -1,33 +1,104 @@
 import pycurl, certifi, json, numpy as np
 from io import BytesIO
+import wormneuroatlas as wa
 
 class WormBase:
     
-    gene_ids_fname = "c_elegans.PRJNA13758.WS286.geneIDs.txt"
+    gene_wbids_fname = "c_elegans.PRJNA13758.WS286.geneIDs.txt"
+    module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
+    '''Folder of the pumpprobe module'''
     
-    def __init__(self):
-        self.load_gene_ids()
-
-    def load_gene_ids(self):
+    def __init__(self, gene_subset = None):
+        self.load_gene_wbids()
+        
+        if gene_subset is not None:
+            # Make a gene_wbid_subset
+            self.gene_wbid_subset = np.zeros(len(gene_subset))
+            for i in np.arange(len(gene_subset)):
+                if type(gene_subset[i]) != int:
+                    if gene_subset[0][0:6] == "WBGene":
+                        gene = self.wbid_to_wbint(gene_subset[i])
+                    else:
+                        gene = self.name_to_gene_wbid(gene_subset[i],alt=True)
+                
+    def load_gene_wbids(self):
         '''Load gene IDs, names, other codes, and types from file. See 
-        WormBase.gene_ids_fname for which version of the database is being 
+        WormBase.gene_wbids_fname for which version of the database is being 
         used.
         '''
-        f = open(self.gene_ids_fname,"r")
+        f = open(self.module_folder+self.gene_wbids_fname,"r")
         lines = f.readlines()
         f.close()
-        self.g_ids = []
+        self.g_wbids = []
         self.g_names = []
-        self.g_codes = []
+        self.g_sequence = []
         self.g_types = []
         for l in lines:
             la = l.split(",")
             if la[4] != "Live": continue
-            self.g_ids.append(la[1])
+            self.g_wbids.append(la[1])
             self.g_names.append(la[2])
-            self.g_codes.append(la[3])
+            self.g_sequence.append(la[3])
             self.g_types.append(la[5])
+            
+    def alt_name_to_gene_wbid(self,alt_name):
+        '''Convert alternative gene names to gene ID.
+        
+        Parameters
+        ----------
+        alt_name: str
+            Alternative name of gene.
+            
+        Returns
+        -------
+        g_wbid: int
+            WormBase gene ID corresponding to the alternative gene name.
+        '''
+        
+        print("To be implemented")
+        g_wbid = None
+        
+        return g_wbid
     
+    def name_to_gene_wbid(self,name,alt=False,dtype=int):
+        '''Returns WormBase gene ID given either the official name or 
+        alternative names. Specify alternative=True if the name is an 
+        alternative name, or if you don't know. The function might run more 
+        slowly if alternative==True.
+        
+        Parameters
+        ----------
+        name: str
+            Gene name.
+        alt: bool (optional)
+            Whether to also consider alternative namings.
+        
+        Returns
+        -------
+        g_wbid: int
+            WormBase gene ID corresponding to the gene name. g_wbid is None
+            if no match has been found.
+        '''
+        try: 
+            g_wbid_i = self.g_names.index(name)
+            g_wbid = self.g_wbids[g_wbid_i]
+        except: g_wbid = None
+        
+        if g_wbid is None and alternative:
+            g_wbid = self.alt_name_to_gene_wbid(name)
+            
+        if dtype==int:
+            g_wbid = self.wbid_to_wbint(g_wbid)
+            
+        return g_wbid
+    
+    @staticmethod
+    def wbid_to_wbstr(gene_wbid):
+        return "WBGene"+"{:>08}".format(str(gene_wbid))
+        
+    @staticmethod
+    def wbid_to_wbint(gene_wbid):
+        return int(gene_wbid[6:])
     
     @staticmethod
     def curl_req(url):
@@ -63,8 +134,8 @@ class WormBase:
         result = json.loads(buffer.getvalue().decode('iso-8859-1'))
         return result
 
-    @staticmethod
-    def get_genes_in_class(gene_class):
+    @classmethod
+    def get_genes_in_class(cls,gene_class):
         '''Get genes (e.g. rab-1, rab-2, ...) in gene class (e.g. rab)
         
         Parameters
@@ -80,20 +151,21 @@ class WormBase:
         
         url = "http://rest.wormbase.org/rest/field/gene_class/"+\
                gene_class+"/current_genes"
-        result = curl_req(url)
+        result = cls.curl_req(url)
         genes = result["current_genes"]["data"]["Caenorhabditis elegans"]
         
         return genes 
     
-    @staticmethod 
-    def get_transcripts_ids(gene_id):
+    @classmethod 
+    def get_transcripts_ids(cls,gene_wbid):
         '''Get transcript isoform IDs for a specific gene. Does not check status
         (e.g. confirmed by cDNA).
         
         Parameters
         ----------
-        gene_id: str
-            WormBase ID of the gene (e.g. WBGene00000001)
+        gene_wbid: str or int
+            WormBase ID of the gene. If string, the WBGene00000001 format is
+            expected. 
             
         Returns
         -------
@@ -101,9 +173,13 @@ class WormBase:
             List of transcripts for that gene. 
         
         '''
+        
+        if type(gene_wbid)==int:
+            gene_wbid = cls.wbid_to_wbstr(gene_wbid)
+        
         url = "http://rest.wormbase.org/rest/widget/gene/"+\
-               gene_id+"/sequences"
-        result = curl_req(url)
+               gene_wbid+"/sequences"
+        result = cls.curl_req(url)
         if result["fields"]["name"]["data"]["taxonomy"] != "c_elegans":
             return None
         result = result["fields"]["gene_models"]["data"]["table"]
@@ -116,8 +192,8 @@ class WormBase:
                         
         return t_ids
     
-    @staticmethod
-    def get_n_introns(transcript_id, starting_feature=None):
+    @classmethod
+    def get_n_introns(cls,transcript_wbid, starting_feature=None):
         '''Get the number of introns for a given transcript isoform. If 
         starting_feature is specified, counts introns only starting from that
         feature in the gene.
@@ -136,8 +212,8 @@ class WormBase:
         '''
     
         url = "http://rest.wormbase.org/rest/widget/transcript/"+\
-               transcript_id+"/sequences"
-        r = curl_req(url)["fields"]
+               transcript_wbid+"/sequences"
+        r = cls.curl_req(url)["fields"]
         if r["strand"]["data"]=="-": strand = "negative_strand"
         else: strand = "positive_strand"
         
@@ -148,7 +224,7 @@ class WormBase:
             starting_feature = ""
         n_introns = 0
         for feature in features:
-            if feature["type"] == :
+            if feature["type"] == starting_feature:
                 feature_found = True
             if feature_found and feature["type"]=="intron":
                 n_introns += 1
