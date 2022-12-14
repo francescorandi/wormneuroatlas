@@ -25,8 +25,8 @@ class Cengen:
         # Make the masks for different confidences
         self.confidence_mask = np.ones((5,self.neuron_n,self.gene_n),dtype=bool)
         for cmi in np.arange(5)[1:]:
-            print("Still something to fix for the confidence thresholds.")
-            #self.confidence_mask[cmi] = self.h5["cengen_sc_"+str(cmi)][:]
+            #print("Still something to fix for the confidence thresholds.")
+            self.confidence_mask[cmi] = self.h5["cengen_sc_"+str(cmi)+"b"][:]
         
         # Store the instance of wormbase. Only necessary for specific things,
         # like looking up gene_wbids from gene_names.
