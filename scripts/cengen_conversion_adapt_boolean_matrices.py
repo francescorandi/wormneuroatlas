@@ -34,14 +34,10 @@ for gi in np.arange(len(gids)):
     if len(k)>0:
         gmatch[gi] = k
         
-cengen_sc_1b = np.zeros(f["cengen_TPM"][:].shape,dtype=bool)
-cengen_sc_1b = f["cengen_sc_1"][:][nmatch][:,gmatch]
-cengen_sc_2b = np.zeros(f["cengen_TPM"][:].shape,dtype=bool)
-cengen_sc_2b = f["cengen_sc_2"][:][nmatch][:,gmatch]
-cengen_sc_3b = np.zeros(f["cengen_TPM"][:].shape,dtype=bool)
-cengen_sc_3b = f["cengen_sc_3"][:][nmatch][:,gmatch]
-cengen_sc_4b = np.zeros(f["cengen_TPM"][:].shape,dtype=bool)
-cengen_sc_4b = f["cengen_sc_4"][:][nmatch][:,gmatch]
+cengen_sc_1b = (f["cengen_sc_1"][:][nmatch][:,gmatch]).astype(bool)
+cengen_sc_2b = (f["cengen_sc_2"][:][nmatch][:,gmatch]).astype(bool)
+cengen_sc_3b = (f["cengen_sc_3"][:][nmatch][:,gmatch]).astype(bool)
+cengen_sc_4b = (f["cengen_sc_4"][:][nmatch][:,gmatch]).astype(bool)
 
 ##################
 f["cengen_sc_1b"] = cengen_sc_1b
