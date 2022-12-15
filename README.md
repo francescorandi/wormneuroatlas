@@ -15,7 +15,7 @@ NeuroAtlas.get_gene_expression(gene_names=["flp-1","aqp-1"], neuron_names=["AVAL
 ```
 
 ## Cengen class
-The Cengen class interfaces with single-cell RNASeq database from the CeNGEN project. Its main function is Cengen.get_gene_expression(), which is called by NeuroAtlas.get_gene_expression() after converting neuron IDs to CeNGEN-style IDs.
+The Cengen class interfaces with single-cell RNASeq database from the CeNGEN project. Its main function is Cengen.get_gene_expression(), which is called by `NeuroAtlas.get_gene_expression()` after converting neuron IDs to CeNGEN-style IDs.
 
 ## PeptideGPCR
 The PeptideGPCR class provides an interface to the neuropeptide/GPCR deorphanization in [4]. The two main functions are
@@ -38,6 +38,7 @@ Compile the neuropeptidergic connectome [7] using gene expression and neuropepti
 1. Randi et al., arXiv 2022 https://arxiv.org/abs/2208.04790
 2. WormBase, wormbase.org
 3. Taylor et al., Cell 2021
-4. Beets et al., bioRxiv 2022
-5. White et al., 1986
+4. Beets et al., bioRxiv 2022 https://www.biorxiv.org/content/10.1101/2022.10.30.514428v1
+5. White et al., Phil. Trans. R. Soc 1986
 6. Witvliet et al., Nature 2021
+7. Ripoll-Sanchez et al., bioRxiv 2022 https://www.biorxiv.org/content/10.1101/2022.10.30.514396v2
