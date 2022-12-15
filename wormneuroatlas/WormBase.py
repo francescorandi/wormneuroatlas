@@ -31,14 +31,14 @@ class WormBase:
         f.close()
         self.g_wbids = []
         self.g_names = []
-        self.g_sequence = []
+        self.g_seq_id = []
         self.g_types = []
         for l in lines:
             la = l.split(",")
             if la[4] != "Live": continue
             self.g_wbids.append(la[1])
             self.g_names.append(la[2])
-            self.g_sequence.append(la[3])
+            self.g_seq_id.append(la[3])
             self.g_types.append(la[5])
             
     def alt_name_to_gene_wbid(self,alt_name):
@@ -55,7 +55,10 @@ class WormBase:
             WormBase gene ID corresponding to the alternative gene name.
         '''
         
-        print("To be implemented")
+        try: self.alt_name_gene_wbid_warning
+        except: 
+            self.alt_name_gene_wbid_warning = True
+            print("WormAtlas alt_name_to_gene_wbid() to be implemented. None.")
         g_wbid = None
         
         return g_wbid
@@ -84,10 +87,10 @@ class WormBase:
             g_wbid = self.g_wbids[g_wbid_i]
         except: g_wbid = None
         
-        if g_wbid is None and alternative:
+        if g_wbid is None and alt:
             g_wbid = self.alt_name_to_gene_wbid(name)
             
-        if dtype==int:
+        if dtype==int and g_wbid is not None:
             g_wbid = self.wbid_to_wbint(g_wbid)
             
         return g_wbid

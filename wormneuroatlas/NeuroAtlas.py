@@ -108,6 +108,7 @@ class NeuroAtlas:
         
         self.wormbase = wa.WormBase()
         self.cengen = wa.Cengen(wormbase=self.wormbase)
+        self.pepgpcr = wa.PeptideGPCR()
         
         ###########################################################
         # Manage conversions between different styles of neuron IDs
@@ -120,9 +121,9 @@ class NeuroAtlas:
         cengen_ids = self.cengen.get_neuron_ids()
         # Convert them to all the corresponding atlas-style neuron IDs
         cengen_ids_to_atlas = self.cengen_ids_to_atlas(cengen_ids)
-        # Initialize array of cengen_ai given ai. In this way the CeNGEN 
+        # Initialize array of cengen_i given ai. In this way the CeNGEN 
         # matrices can be indexed with matrix[neura.cengen_i[ai]]
-        self.cengen_i = -1*np.zeros(self.neuron_n,dtype=int)
+        self.cengen_is = -1*np.zeros(self.neuron_n,dtype=int)
         
         for ai in np.arange(self.n_neurons):
             for ci in np.arange(len(cengen_ids_to_atlas)):
@@ -131,7 +132,7 @@ class NeuroAtlas:
                                 self.merge_dorsoventral,self.merge_numbered,
                                 self.merge_AWC)
                 if self.neuron_ids[ai] in app_c_ids_to_atlas:
-                    self.cengen_i[ai] = ci
+                    self.cengen_is[ai] = ci
     
     
     def approximate_ids(self,ids,merge_bilateral=True,merge_dorsoventral=True,
@@ -293,6 +294,10 @@ class NeuroAtlas:
             return atlas_i[0]
         else:
             return atlas_i
+            
+    def ids_to_ais(self,*args,**kwargs):
+        '''alias'''
+        return self.ids_to_ai(*args,**kwargs)
             
     def load_ganglia(self):
         # Load the whole object
@@ -578,9 +583,10 @@ class NeuroAtlas:
                 else:
                     names = ["AWCOFF"]
             else:
-                names = [ids[iid]]
+                match=np.flatnonzero(np.char.find(self.neuron_ids,ids[iid])==0)
+                names = self.neuron_ids[match].tolist()
                 
-        names_out.append(names)
+            names_out.append(names)
         
         if was_scalar:
             return names_out[0]
@@ -1205,6 +1211,50 @@ class NeuroAtlas:
                     
             self.nptr_exp_levels = exp_levels
             self.nptr_genes = genes
+    
+    ##########################
+    ##########################
+    ##########################
+    # INTERFACE TO CENGEN
+    ##########################
+    ##########################
+    ##########################
+    
+    def get_gene_expression(self, neuron_ais=None, neuron_ids=None, 
+                            *args, **kwargs):
+        '''Get gene expression. Relays the function call to 
+        Cengen.get_gene_expression() after converting the neuron atlas-indices
+        or neuron IDs to the corresponding CeNGEN-style index or ID.
+        
+        Parameters
+        ----------
+        *args, **kwargs:
+            See Cengen.get_gene_expression()
+        
+        Returns
+        -------
+        gene_exp: 2D numpy.ndarray
+            gene_exp[i,k] is the gene expression of the k-th gene in the i-th
+            neuron.
+        
+        '''
+        # Generate the list of CeNGEN indices (cis) of the requeste neurons.
+        if neuron_ais is not None:
+            neuron_cis = self.cengen_is[neuron_ais]
+        elif neuron_ids is not None:
+            try: neuron_ids[0] 
+            except: neuron_ids = np.array([neuron_ids])
+            neuron_ais = self.ids_to_ais(neuron_ids)
+            neuron_cis = self.cengen_is[neuron_ais]
+        else:
+            neuron_cis = self.cengen_is
+            
+        kwargs["neuron_cis"] = neuron_cis
+        
+        gene_exp = self.cengen.get_expression(*args,**kwargs)
+        
+        return gene_exp
+    
     
     ##########################
     ##########################
