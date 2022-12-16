@@ -107,7 +107,7 @@ class NeuroAtlas:
         self.SIM_head_ai = self.ids_to_ai(self.SIM_head_ids)
         
         self.wormbase = wa.WormBase()
-        self.cengen = wa.Cengen(wormbase=self.wormbase)
+        self.cengen = wa.Cengen()
         self.pepgpcr = wa.PeptideGPCR()
         
         ###########################################################
@@ -856,6 +856,19 @@ class NeuroAtlas:
             
     @staticmethod
     def corr_from_eff_causal_conn(A):
+        '''Built a correlation-type matrix from a causal-connectivity-type
+        matrix.
+        
+        Parameters
+        ----------
+        A: 2D numpy.ndarary
+            Causal-connectivity-type matrix.
+            
+        Returns
+        -------
+        B: 2D numpy.ndarray
+            Correlation-type matrix.
+        '''
         B = A+A.T
         C = np.zeros_like(B)
         count = np.zeros_like(B)
@@ -1212,13 +1225,13 @@ class NeuroAtlas:
             self.nptr_exp_levels = exp_levels
             self.nptr_genes = genes
     
-    ##########################
-    ##########################
-    ##########################
-    # INTERFACE TO CENGEN
-    ##########################
-    ##########################
-    ##########################
+    ###########################################################
+    ###########################################################
+    ###########################################################
+    # INTERFACE TO CENGEN AND NEUROPEPTIDE/GPCR DEORPHANIZATION
+    ###########################################################
+    ###########################################################
+    ###########################################################
     
     def get_gene_expression(self, neuron_ais=None, neuron_ids=None, 
                             *args, **kwargs):
@@ -1254,7 +1267,7 @@ class NeuroAtlas:
         gene_exp = self.cengen.get_expression(*args,**kwargs)
         
         return gene_exp
-    
+        
     
     ##########################
     ##########################

@@ -1,4 +1,4 @@
-import numpy as np, wormneuroatlas as wa
+import numpy as np, re, wormneuroatlas as wa
 
 class PeptideGPCR:
     module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
@@ -11,6 +11,8 @@ class PeptideGPCR:
         self.gpcr_seq_ids = data[:,0].astype(str)
         self.gpcr_names = data[:,1].astype(str)
         self.peptide_names = np.char.replace(data[:,2].astype(str),"pyro","")
+        for pi in np.arange(len(self.peptide_names)):
+            self.peptide_names[pi]=re.sub(r' \(.*\)',"",self.peptide_names[pi])
         self.log_ec50 = data[:,3].astype(float) # in moles
         
     def get_peptide_names(self,trim_isoforms=True):
@@ -23,9 +25,9 @@ class PeptideGPCR:
             Default: True.
         '''
         if not trim_isoforms:
-            return self.peptide_names
+            return np.unique(self.peptide_names)
         else:
-            pep_names = self.trim_isoforms(self.peptide_names)
+            pep_names = np.unique(self.trim_isoforms(self.peptide_names))
             return pep_names
             
     def get_gpcr_names(self,trim_isoforms=True):
@@ -38,9 +40,9 @@ class PeptideGPCR:
             Default: True.
         '''
         if not trim_isoforms:
-            return self.gpcr_names
+            return np.unique(self.gpcr_names)
         else:
-            gpcr_names = self.trim_isoforms(self.gpcr_names)
+            gpcr_names = np.unique(self.trim_isoforms(self.gpcr_names))
             return gpcr_names
         
     def get_gpcrs_binding_to(self,peptides,

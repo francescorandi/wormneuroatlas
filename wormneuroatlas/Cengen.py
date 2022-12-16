@@ -1,4 +1,4 @@
-import numpy as np, h5py
+import numpy as np, h5py,matplotlib.pyplot as plt
 import wormneuroatlas as wa
 
 class Cengen:
@@ -9,36 +9,50 @@ class Cengen:
     
     def __init__(self,wormbase=None):
         self.h5 = h5py.File(self.module_folder+self.cengen_fname,"r")
-        # Directly load neuron and gene IDs from file.
+        # Directly load neuron from file. These are the same for each 
+        # threshold file.
         self.neuron_ids = [n.decode("utf-8") for n in self.h5["neuron_ids"][:]]
         self.neuron_ids = np.array(self.neuron_ids)
         self.neuron_n = self.n_neurons = len(self.neuron_ids)
-        self.gene_wbids = [g.decode("utf-8") for g in self.h5["gene_wbids"][:]]
-        self.gene_wbids = np.array(self.gene_wbids)
-        self.gene_n = self.n_genes = len(self.gene_wbids)
-        # Make a integer version of the WormBase gene IDs.
-        self.gene_wbids_int = np.array([int(a[6:]) for a in self.gene_wbids])
         
-        # Don't load gene expression from file yet. Only on demand.
-        self.gene_expression = self.h5["cengen_TPM"]
+        # These are variable that come with different gene orderings in the 
+        # external datasets.
+        self.gene_expression = np.zeros(5,dtype=object)
+        self.gene_wbids = np.zeros(5,dtype=object)
+        self.gene_wbids_int = np.zeros(5,dtype=object)
+        self.gene_names = np.zeros(5,dtype=object)
+        self.gene_n = self.n_genes = np.zeros(5,dtype=int)
         
-        # Make the masks for different confidences
-        self.confidence_mask = np.ones((5,self.neuron_n,self.gene_n),dtype=bool)
-        for cmi in np.arange(5)[1:]:
-            #print("Still something to fix for the confidence thresholds.")
-            self.confidence_mask[cmi] = self.h5["cengen_sc_"+str(cmi)+"b"][:]
-        
+        for th in np.arange(5)[1:]:
+            # Load gene IDs from file.
+            a=[g.decode("utf-8") for g in self.h5["gene_wbids_th"+str(th)][:]]
+            self.gene_wbids[th] = np.array(a)
+            # Make a integer version of the WormBase gene IDs.
+            self.gene_wbids_int=np.array([int(a[6:]) for a in a])
+            # Load gene names from file.
+            a = [g.decode("utf-8") for g in self.h5["gene_names_th"+str(th)][:]]
+            self.gene_names[th] = np.array(a)
+            # Store the number of genes
+            self.gene_n[th] = len(a)
+            
+            self.gene_expression[th] = self.h5["tpm_th"+str(th)][:]
+            
         # Store the instance of wormbase. Only necessary for specific things,
         # like looking up gene_wbids from gene_names.
         self.wormbase = wormbase
         
-        
     def get_neuron_ids(self):
         return self.neuron_ids
         
+    def get_gene_wbids(self,th):
+        return self.gene_wbids[th]
+        
+    def get_gene_names(self,th):
+        return self.gene_names[th]
+        
     def get_expression(self, gene_cis=None, gene_wbids=None, gene_names=None,
                        neuron_cis=None, neuron_ids=None,
-                       threshold=4):
+                       th=4):
         '''Get gene expression for given genes and neurons.
         
         Parameters
@@ -58,7 +72,7 @@ class Cengen:
         neuron_ids: array_like of strings (optional)
             CeNGEN-style neuron IDs. Only used if neuron_cis is None. Default:
             None.
-        threshold: int (optional)
+        th: int (optional)
             Confidence threshold, as in the CeNGEN online app. Can range from
             0 (no threshold) to 4. Default: 4.
             
@@ -72,7 +86,7 @@ class Cengen:
         ########################################################################
         # Parse the different possible inputs to select which genes to use.
         ########################################################################
-        gene_cis = self.parse_genes_input(gene_cis,gene_wbids,gene_names)
+        gene_cis = self.parse_genes_input(th,gene_cis,gene_wbids,gene_names)
         unknown_genes = gene_cis==-1
         gene_cis[gene_cis==-1] = 0
 
@@ -88,25 +102,28 @@ class Cengen:
             for nid in neuron_ids:
                 nci = np.where(nid==self.neuron_ids)[0][0]
                 neuron_cis.append(nci)
+        else:
+            neuron_cis = np.arange(self.neuron_n)
                 
         neuron_cis = np.array(neuron_cis)
         
-        #expression = self.gene_expression[neuron_cis][:,gene_cis]
+        expression = self.gene_expression[th][neuron_cis][:,gene_cis]
+        
+        #expression = self.slice_h5_2d(self.gene_expression[threshold],
+        #                              neuron_cis,gene_cis)
         # Apply mask given the threshold on the confidence
-        #expression *= self.confidence_mask[threshold][neuron_cis][:,gene_cis]
-        expression = self.slice_h5_2d(self.gene_expression,neuron_cis,gene_cis)
-        # Apply mask given the threshold on the confidence
-        conf_mask = self.slice_h5_2d(self.confidence_mask[threshold],
-                                     neuron_cis,gene_cis)
-        expression *= conf_mask
+        #conf_mask = self.slice_h5_2d(self.confidence_mask[threshold],
+        #                             neuron_cis,gene_cis)
+        #expression *= conf_mask
         
         # Reapply mask for unknown genes
-        expression[:,unknown_genes] = np.nan
+        expression[:,unknown_genes] = 0
         
         return expression
         
     
-    def parse_genes_input(self,gene_cis=None, gene_wbids=None, gene_names=None):
+    def parse_genes_input(self,th=4,
+                          gene_cis=None, gene_wbids=None, gene_names=None):
         '''Parses flexible input of gene selection.
         
         Parameters
@@ -130,19 +147,20 @@ class Cengen:
             # Allow for "all" or a specific set
             if type(gene_cis)==str:
                 if gene_cis=="all":
-                    gene_cis = np.arange(self.gene_n)
+                    gene_cis = np.arange(self.gene_n[th])
             else:
                 # You already have the CeNGEN indices of the genes
                 pass
+                
         elif gene_wbids is not None:
             # If the WormBase IDs are passed, they could be the integer or
             # string version of the ID (WBGene00000001 or 1)
             gene_cis = []
             for gwbid in gene_wbids:
                 if type(gwbid)==int:
-                    gene_cis.append(np.where(gwbid==self.gene_wbids_int)[0][0])
+                    gene_cis.append(np.where(gwbid==self.gene_wbids_int[th])[0][0])
                 elif type(gwbid)==str:
-                    gene_cis.append(np.where(gwbid==self.gene_wbids)[0][0])
+                    gene_cis.append(np.where(gwbid==self.gene_wbids[th])[0][0])
                 else:
                     gene_cis.append(None)
                     
@@ -150,22 +168,19 @@ class Cengen:
             gene_names = [g.lower() for g in gene_names]
             # If names are passed, use the WormBase instance to transform those
             # names to WormBase IDs and then transform the latter to CeNGEN IDs.
-            if self.wormbase is not None:
-                gene_cis = []
-                for gn in gene_names:
-                    # Get WormBase ID
-                    wbid = self.wormbase.name_to_gene_wbid(gn,alt=True)
-                    if wbid is not None:
-                        # Get CeNGEN gene_i
-                        ci = np.where(wbid==self.gene_wbids_int)[0][0]
-                    else:
-                        ci = -1
-                    gene_cis.append(ci)     
+            gene_cis = []
+            for gname in gene_names:
+                match = np.where(gname==self.gene_names[th])[0]
+                if len(match)>0:
+                    gene_cis.append(match[0])
+                else:
+                    gene_cis.append(-1)
+
         else:
             #If nothing is specified, assume all genes are selected.
-            gene_cis = np.arange(self.gene_n)
+            gene_cis = np.arange(self.gene_n[th])
         
-        gene_cis = np.array(gene_cis)                  
+        gene_cis = np.array(gene_cis)   
                     
         return gene_cis
         
