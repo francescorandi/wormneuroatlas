@@ -1,4 +1,4 @@
-import numpy as np, json
+import numpy as np, matplotlib.pyplot as plt, json, h5py
 import wormneuroatlas as wa
 
 class NeuroAtlas:
@@ -6,14 +6,15 @@ class NeuroAtlas:
     '''Name of file containing full list of neurons'''
     fname_ganglia = "aconnectome_ids_ganglia.json"
     '''Name of the file containing the list of neurons divided in ganglia'''
-    fname_senseoryintermotor = "sensoryintermotor_ids.json"
-    '''Name of the file containinf the list of neurons divided into sensory motor and interneurons'''
+    fname_signal_propagation = "funatlas.h5"
+    '''Name of the file  containing the signal propagation atlas.'''
     fname_innexins = "GenesExpressing-unc-7-unc-9-inx-_-eat-5-thrs2.csv"
     '''Name of the file containing the expression levels of innexins'''
     fname_neuropeptides = "GenesExpressing-neuropeptides.csv"
     '''Name of the file containing the expression levels of neuropeptides'''
     fname_neuropeptide_receptors = "GenesExpressing-neuropeptide-receptors.csv"
-    '''Name of the file containing the expression levels of neuropeptide receptors'''
+    '''Name of the file containing the expression levels of neuropeptide ''' \
+    '''receptors'''
     module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
     '''Folder of the pumpprobe module'''
     
@@ -60,11 +61,7 @@ class NeuroAtlas:
         self.merge_dorsoventral = merge_dorsoventral
         self.merge_numbered = merge_numbered
         self.merge_AWC = merge_AWC
-        # Reminder of the convention for AWCON and AWCOFF, since the anatomical
-        # data has AWCL and AWCR.
-        if not merge_AWC and not merge_bilateral and verbose:
-            print("Using AWCOFF->AWCL and AWCON->AWCR to allow comparison "+\
-                  "with the anatomical connectome.")
+        
         if merge_numbered and verbose:
             print("Funatlas: Note that IL1 and IL2 will not be merged, as "+\
                    "well as VB1, VA1, VA11 because "+\
@@ -97,16 +94,13 @@ class NeuroAtlas:
         self.pharynx_ids = np.unique(self.pharynx_ids)
         self.pharynx_ai = self.ids_to_ai(self.pharynx_ids)
         
-        # Same thing for ordering into sensory, inter, motor neurons
-        self.sim, self.SIM_head_ids = self.load_sim_head()
-        self.SIM_head_ids = self.approximate_ids(
-                                self.SIM_head_ids,self.merge_bilateral,
-                                self.merge_dorsoventral,self.merge_numbered,
-                                self.merge_AWC)
-        self.SIM_head_ids = np.array(self.SIM_head_ids)
-        self.SIM_head_ai = self.ids_to_ai(self.SIM_head_ids)
+        self.load_signal_propagation_atlas()
         
-        self.wormbase = wa.WormBase()
+        try:
+            self.wormbase = wa.WormBase()
+        except:
+            print("Wormbase not available, likely because libcurl is missing.")
+            print("See README.")
         self.cengen = wa.Cengen()
         self.pepgpcr = wa.PeptideGPCR()
         
@@ -185,9 +179,9 @@ class NeuroAtlas:
                     # self.ids_to_ai().
                     if merge_bilateral or merge_AWC:
                         out_id = "AWC"
-                    elif not merge_AWC and not merge_bilateral:
-                        if in_id=="AWCOFF": out_id="AWCL"
-                        elif in_id=="AWCON": out_id="AWCR"
+                    #elif not merge_AWC and not merge_bilateral:
+                    #    if in_id=="AWCOFF": out_id="AWCL"
+                    #    elif in_id=="AWCON": out_id="AWCR"
                         
                 if merge_bilateral and in_id not in ["AQR"]:
                     if in_id[-1]=="L":
@@ -318,28 +312,6 @@ class NeuroAtlas:
         
         return ganglia, head_ids, pharynx_ids
     
-    def load_sim_head(self):
-        #load the ganglia and sim object
-    	g_f = open(self.module_folder+self.fname_ganglia,"r")
-    	ganglia = json.load(g_f)
-    	g_f.close()
-    	sim_f = open(self.module_folder+self.fname_senseoryintermotor,"r")
-    	sim = json.load(sim_f)
-    	sim_f.close
-    	
-    	head_ids = []
-    	for k in ganglia["head"]:
-    	    for neu_id in ganglia[k]:
-    	        head_ids.append(neu_id)
-    	SIM_head_ids = []
-    	categories = ["Sensory", "Inter", "Motor"]
-    	for c in categories:
-    	    for neu_id_sim in sim[c]:
-    	        if neu_id_sim in head_ids:
-    	            SIM_head_ids.append(neu_id_sim)
-    	
-    	return sim, SIM_head_ids
-    	
     def reduce_to_head(self,A):
         '''Returns the submatrix or subarray of A corresponding to the head 
         neurons only.
@@ -360,28 +332,7 @@ class NeuroAtlas:
         elif len(A.shape)==1:
             A_new = A[self.head_ai]
         return A_new 
-    
-    def reduce_to_SIM_head(self,A):
-        '''Returns the submatrix or subarray of A corresponding to the head 
-        neurons only sorted by the sensory, inter and motor neurons
-        
-        Parameters
-        ----------
-        A: numpy.ndarray
-            Matrix or array to be cut.
-        
-        Returns
-        -------
-        A_new: numpy.ndarray
-            Matrix reduced to the head indices.
-        '''
-        
-        if len(A.shape)==2:
-            A_new = A[self.SIM_head_ai][:,self.SIM_head_ai]
-        elif len(A.shape)==1:
-            A_new = A[self.SIM_head_ai]
-        return A_new 
-        
+            
     def reduce_to_pharynx(self,A):
         '''Returns the submatrix or subarray of A corresponding to the pharynx 
         neurons only.
@@ -536,7 +487,7 @@ class NeuroAtlas:
                 elif self.merge_bilateral and self.merge_dorsoventral:
                     names = ["URA__"]
                 else:
-                    names = ["URADR","URADL","URAVR","URADL"]
+                    names = ["URADR","URADL","URAVR","URAVL"]
             elif ids[iid]=="SAA":
                 if self.merge_bilateral and not self.merge_dorsoventral:
                     names = ["SAAD_","SAAV_"]
@@ -572,6 +523,12 @@ class NeuroAtlas:
                     names = ["SMB__"]
                 else:
                     names = ["SMBDR","SMBDL","SMBVR","SMBVL"]
+            elif ids[iid]=="VD_DD":
+                if self.merge_numbered:
+                    names = ["VD","DD"]
+                else:
+                    names = ["VD"+str(i) for i in np.arange(14)[1:]]
+                    names += ["DD"+str(i) for i in np.arange(7)[1:]]
             elif ids[iid]=="AWC_ON":
                 if self.merge_AWC:
                     names = ["AWC"]
@@ -592,6 +549,88 @@ class NeuroAtlas:
             return names_out[0]
         else:
             return names_out
+            
+    
+    ##########################
+    ##########################
+    ##########################
+    # SIGNAL PROPAGATION ATLAS
+    ##########################
+    ##########################
+    ##########################
+    
+    def load_signal_propagation_atlas(self):
+        self.funatlas_h5 = h5py.File(
+                        self.module_folder+self.fname_signal_propagation,"r")
+        
+        neuron_ids = [n.decode("utf-8") for n in self.funatlas_h5["neuron_ids"][:]]
+        
+        for i in np.arange(len(self.neuron_ids)):
+            if neuron_ids[i]!=self.neuron_ids[i] and neuron_ids[i]!="AWCOF":
+                print("In NeuroAtlas signal propagation",
+                      "Something wrong with neuron id",
+                      neuron_ids[i],self.neuron_ids[i])
+        
+        # delta F/F averaged over a time window and trials
+        self.dFF = {}
+        self.dFF["wt"] = self.funatlas_h5["wt"]["dFF"][:]
+        self.dFF["unc31"] = self.funatlas_h5["unc31"]["dFF"][:]
+        
+        # delta F/F averaged over a time window (each i,j contains all the 
+        # corresponding trials)
+        self.dFF_all = {}
+        self.dFF_all["wt"] = self.funatlas_h5["wt"]["dFF_all"][:]
+        self.dFF_all["unc31"] = self.funatlas_h5["unc31"]["dFF_all"][:]
+        
+        # q values 
+        self.q = {}
+        self.q["wt"] = self.funatlas_h5["wt"]["q"][:]
+        self.q["unc31"] = self.funatlas_h5["unc31"]["q"][:]
+        
+        # equivalence-testing q values
+        self.q_eq = {}
+        self.q_eq["wt"] = self.funatlas_h5["wt"]["q_eq"][:]
+        self.q_eq["unc31"] = self.funatlas_h5["unc31"]["q_eq"][:]
+        
+        # occurrence matrix: each entry is the length of dFF_all[i,j]
+        self.occ1 = {}
+        self.occ1["wt"] = self.funatlas_h5["wt"]["occ1"][:]
+        self.occ1["unc31"] = self.funatlas_h5["unc31"]["occ1"][:]
+    
+    def get_signal_propagation_map(self,strain="wt"):
+        return self.dFF[strain]
+        
+    def get_sigpropmap(self,*args,**kwargs):
+        '''alias
+        '''
+        return self.get_signal_propagation_map(*args,**kwargs)
+    
+    def get_signal_propagation_map_all(self,strain="wt"):
+        return self.dFF_all[strain]
+    
+    def get_sigpropmap_all(self,*args,**kwargs):
+        '''alias
+        '''
+        return self.get_signal_propagation_map_all(*args,**kwargs)
+        
+    def get_signal_propagation_occurrence_matrix(self,strain="wt"):
+        return self.occ1[strain]
+        
+    def get_signal_propagation_q(self,strain="wt"):
+        return self.q[strain]
+        
+    def get_kernels(self):
+        print("Kernels to be imported. Soon available.")
+        return None
+        
+            
+    #######################
+    #######################
+    #######################
+    # ANATOMICAL CONNECTOME
+    #######################
+    #######################
+    #######################
         
     def load_aconnectome_from_file(self,chem_th=3,gap_th=2,exclude_white=False,
                                    average=False):
@@ -599,10 +638,24 @@ class NeuroAtlas:
                     self.get_aconnectome_from_file(chem_th,gap_th,exclude_white,
                                                    average=average)
         
-    def get_aconnectome_from_file(self,chem_th=3,gap_th=2,exclude_white=False,
+    def get_aconnectome_from_file(self,chem_th=0,gap_th=0,exclude_white=False,
                                   average=False):
         '''Load the anatomical connectome data from all the sources listed in 
         the class.
+        
+        Parameters
+        ----------
+        chem_th: int (optional)
+            Threshold on the counts of chemical synapses. Default: 0.
+        gap_th: int (optional)
+            Threshold on the counts of electrical synapses. Default: 0.
+        exclude_white: bool (optional)
+            Whether to exclude the older connectome from White et al. 1986.
+            Default: False.
+        average: bool (optional)
+            Determines how the different connectomes are combined. If True,
+            the average of the connectomes is taken, otherwise they are summed.
+        
         
         Returns
         -------
@@ -615,6 +668,12 @@ class NeuroAtlas:
         '''
         chem = np.zeros((self.n_neurons, self.n_neurons))
         gap = np.zeros((self.n_neurons, self.n_neurons))
+        
+        # Reminder of the convention for AWCON and AWCOFF, since the anatomical
+        # data has AWCL and AWCR.
+        if not self.merge_AWC and not self.merge_bilateral and self.verbose:
+            print("Using AWCL->AWCOFF and AWCR->AWCON to allow comparison "+\
+                  "with the anatomical connectome.")
         
         sources_used = 0
         for source in self.aconn_sources:
@@ -731,7 +790,19 @@ class NeuroAtlas:
         return chem, gap
         
     def get_effective_aconn(self,s=1):
-        '''s is a modulation of the strenght'''
+        '''Returns the effective anatomical connectome computed with a given 
+        gain for the connections.
+        
+        Parameters
+        ----------
+        s: float (optional)
+            Gain, or modulation of the strength of the connections. Default: 1.
+        
+        Returns
+        -------
+        G: 2D numpy.ndarray
+            Effective anatomical connectome.
+        '''
         g = s*(self.aconn_chem+self.aconn_gap)
         diag_i = np.diag_indices(self.n_neurons)
         g[diag_i] = 0.0
@@ -890,6 +961,8 @@ class NeuroAtlas:
     
     @staticmethod
     def symmetrize_nan_preserving(A):
+        '''Symmetrize a matrix preserving the nan entries as such.
+        '''
         nanmask = np.isnan(A)*np.isnan(A.T)
         A_ = 0.5*(np.nansum([A,A.T],axis=0))
         A_[nanmask] = np.nan
@@ -1059,7 +1132,20 @@ class NeuroAtlas:
     
     @staticmethod
     def _have_common_1_hop_upstream(c):
+        '''Given a connectome, return the matrix that says whether two neurons
+        have a common upstream neuron 1 hop away.
         
+        Parameters
+        ----------
+        c: 2D numpy.ndarray
+            Input connectome. Can be numeric or boolean.
+        
+        Returns
+        -------
+        c_new: 2D numpy.ndarray of bool
+            c_new[i,j] is True if i and j have a common upstream neuron 1 hop 
+            away in the original connectome c.
+        '''
         n = len(c)
         c_new = np.zeros_like(c)
         
@@ -1072,6 +1158,21 @@ class NeuroAtlas:
         return c_new
         
     def have_common_n_hop_upstream(self,n=1):
+        '''Return the matrix that says whether two neurons have a common 
+        upstream neuron n hops away.
+        
+        Parameters
+        ----------
+        n: int (optional)
+            Number of upstream hops at which to search for common upstream 
+            neurons. Default 1.
+        
+        Returns
+        -------
+        c_new: 2D numpy.ndarray of bool
+            c_new[i,j] is True if i and j have a common upstream neuron n hop 
+            away in the original connectome c.
+        '''
         if n!=1: raise ValueError("Implemented for n=1 only.")
 
         c = (self.aconn_chem+self.aconn_gap) != 0
@@ -1081,6 +1182,16 @@ class NeuroAtlas:
         return c_new
         
     def shuffle_aconnectome(self,shuffling_sorter=None):
+        '''Shuffles the connectome internally stored in the instance of the 
+        class.
+        
+        Parameters
+        ----------
+        shuffling_sorter: 1D numpy.ndarray (optional)
+            Sorter that determines the suffling. Useful if the shuffler is 
+            constructed somewhere else in the code. If None, a random shuffler 
+            is generated. Default: None
+        '''
         if shuffling_sorter is None:
             shuffling_sorter = self.get_shuffling_sorter()
             
@@ -1088,6 +1199,10 @@ class NeuroAtlas:
         self.aconn_gap = self.shuffle_array(self.aconn_gap,shuffling_sorter)
         
     def load_innexin_expression_from_file(self):
+        '''Load the expression of innexins from file (unc-7, unc-9, inx-*, 
+        eat-5). Legacy, given the new interface to CeNGEN, but might be 
+        still useful. 
+        '''
         if not self.merge_bilateral:
             print("inx expression level available only with merge_bilateral")
             return None
@@ -1130,6 +1245,20 @@ class NeuroAtlas:
         return self.inx_exp_levels, self.inx_genes, unc7_9_to_others
         
     def get_inx_exp_levels2(self,inx):
+        '''Returns, for each neuron, the ratio of the expression level of a
+        given innexin and the total expression of all the innexins.
+        
+        Parameters
+        ----------
+        inx: str
+            Name of the innexin. Can be unc-7, unc-9, any inx-, or eat-5.
+            
+        Returns
+        -------
+        fr: 1D numpy.ndarray
+            fr[ai] is the fractional expression of inx in neuron ai.
+        '''
+        
         inx_i = self.inx_genes.index(inx)
         
         fr = np.zeros(self.n_neurons)
@@ -1160,6 +1289,7 @@ class NeuroAtlas:
         return fr
         
     def load_neuropeptide_expression_from_file(self):
+        '''Legacy.'''
         if not self.merge_bilateral:
             print("neuropeptide expression level available only with merge_bilateral")
             return None
@@ -1193,6 +1323,7 @@ class NeuroAtlas:
             self.npt_genes = genes
             
     def load_neuropeptide_receptor_expression_from_file(self):
+        '''Legacy.'''
         if not self.merge_bilateral:
             print("neuropeptide receptor expression level available only with merge_bilateral")
             return None
@@ -1269,13 +1400,13 @@ class NeuroAtlas:
         return gene_exp
         
     
-    ##########################
-    ##########################
-    ##########################
-    # EXTRASYNAPTIC CONNECTOME
-    ##########################
-    ##########################
-    ##########################
+    ##############################################
+    ##############################################
+    ##############################################
+    # EXTRASYNAPTIC CONNECTOME FROM BENTLEY ET AL.
+    ##############################################
+    ##############################################
+    ##############################################
     
     def load_extrasynaptic_connectome_from_file(self, *args, **kwargs):
          esconn_ma, esconn_np = self.get_extrasynaptic_connectome_from_file(
@@ -1443,6 +1574,29 @@ class NeuroAtlas:
     
     @staticmethod
     def threshold_to_sparseness(A,sparseness,absolute=True,max_i=100):
+        '''Returns the number by which a given matrix or tensor must be 
+        thresholded to make it sparse as specified. Note, the tensor is not
+        sparsified in place by this function.
+        
+        Parameters
+        ----------
+        A: array_like
+            Tensor to be sparsified.
+        sparseness: float
+            Desired sparseness, expressed as fraction of non-zero elements.
+        absolute: bool (optioal)
+            Whether to sparsify and threshold based on absolute values.
+            Default: True.
+        max_i: int (optional)
+            Maximum number of iterations allowed in estimating the thresold.
+            Default: 100.
+        
+        Returns
+        -------
+        th: float
+            Threshold that will sparsify the tensor A to the specified 
+            sparseness.
+        '''
         amax = np.max(A)
         amin = np.min(A)
         
@@ -1470,5 +1624,140 @@ class NeuroAtlas:
             i+=1
             
         return th
+        
+    ##########################
+    ##########################
+    ##########################
+    # PLOTTING
+    ##########################
+    ##########################
+    ##########################   
+    
+    @staticmethod
+    def make_alphacolorbar(cax,vmin,vmax,tickstep,
+                       alphamin,alphamax,nalphaticks,
+                       cmap="viridis",bg_gray=0.2,around=0,lbl_lg=False,
+                       lbl_g=False,alphaticklabels=None):
+        '''Make a 2D colorbar with transparency on one axis.
+        
+        Parameters
+        ----------
+        cax: matplotlib axis
+            Axis in which to draw the colorbar.
+        vmin, vmax: float
+            Minimum and maximum values of the colormap axis (y).
+        tickstep: float
+            Step of the ticks on the colormap axis (y).
+        alphamin, alphamax: float
+            Minimum and maximum alphas.
+        nalphaticks: int
+            Number of ticks on the alpha axis (x).
+        cmap: matplotlib-accepted colormap (optional)
+            Colormap.
+        around: int (optional)
+            np.around -ing precision for ticks. Default: 0.
+        '''
+        
+        nticks = int((vmax-vmin)/tickstep)
+        
+        alphacm1 = np.zeros((200,200))
+        alphacm1[:] = np.arange(alphacm1.shape[0])[:,None]
+        alphacm2 = np.zeros_like(alphacm1)
+        alphacm2[:] = (np.arange(alphacm1.shape[1])/alphacm1.shape[1])[None,:]
+        
+        background = np.ones_like(alphacm1)*bg_gray
+        
+        cax.yaxis.tick_right()
+        cax.yaxis.set_label_position("right")
+        cax.imshow(background,cmap="Greys",vmin=0,vmax=1)
+        cax.imshow(alphacm1,alpha=alphacm2,aspect="auto",cmap=cmap,
+                   interpolation="nearest",origin="lower")
+
+        cax.set_xticks([0,alphacm1.shape[1]])
+        if alphaticklabels is None:
+            cax.set_xticklabels([str(alphamin),str(alphamax)])
+        else:
+            cax.set_xticklabels([alphaticklabels[0],alphaticklabels[1]])
+        yticks = np.linspace(0,alphacm1.shape[0],nticks+1)
+        cax.set_yticks(yticks)
+        d = (vmax-vmin)/nticks
+        yticklbl = [str(np.around(i*d+vmin,around)) \
+                       for i in np.arange(len(yticks))]
+        if lbl_lg: 
+            yticklbl[0] = "<"+yticklbl[0]
+            yticklbl[-1] = ">"+yticklbl[-1]
+        if lbl_g:
+            yticklbl[-1] = ">"+yticklbl[-1]
+        cax.set_yticklabels(yticklbl)
+        cax.set_xlim(0,alphacm1.shape[1])
+        cax.set_ylim(0,alphacm1.shape[0])
+        
+    @classmethod
+    def plot_matrix(cls, A, ids, alphas=None, 
+                    cmap="Spectral_r", vmax=0.4, vmin=None,
+                    black_diag=True, gray_nans=True, 
+                    fig=None, figsize=(20,20), 
+                    label=r'$\langle\Delta F/F\rangle_t$', alphalabel="1-q",
+                    labelx="stimulated", labely="responding",
+                    labelsize=30,ticklabelsize=6,
+                    alphamin=0.0,alphamax=1.0):
+        
+        if fig is None:
+            cfn = plt.gcf().number
+            if len(plt.gcf().axes) != 0: cfn += 1
+            fig = plt.figure(cfn,figsize=figsize)
+            
+        if alphas is None:
+            # There is no need for gridspec
+            ax = fig.add_subplot(111)
+        else:
+            # Allow for more space 
+            gs = fig.add_gridspec(1,10)
+            ax = fig.add_subplot(gs[0,:9])
+            cax = fig.add_subplot(gs[0,9:])
+            
+        if vmin is None:
+            vmin = -vmax
+        
+        if gray_nans:
+            ax.imshow(0.*np.ones_like(A),cmap="Greys",vmax=1,vmin=0)
+            blank_A = np.copy(A)
+            blank_A[~np.isnan(A)] = 0.1
+            ax.imshow(blank_A,cmap="Greys",vmin=0,vmax=1)
+            
+        im = ax.imshow(A,cmap=cmap,vmin=-vmax,vmax=vmax,
+                       alpha=alphas,interpolation="nearest")
+        
+        if black_diag:
+            diagonal = np.diag(np.diag(np.ones_like(A)))
+            new_diagonal = np.zeros_like(A)
+            new_diagonal[np.where(diagonal == 1)] = 1
+            ax.imshow(new_diagonal, cmap="binary", vmin=0, vmax=1, 
+                      alpha=new_diagonal, interpolation="nearest")
+            
+        if alphas is None:
+            plt.colorbar(im, label=label)
+        else:
+            cls.make_alphacolorbar(cax,-vmax,vmax,0.1,alphamin,alphamax,2,
+                                    cmap=cmap,around=1,lbl_lg=True)
+            cax.set_xlabel(alphalabel,fontsize=labelsize//2)
+            cax.set_ylabel(label,fontsize=labelsize//2)
+            cax.tick_params(labelsize=labelsize//2)
+        
+        ax.set_xlabel(labelx,fontsize=labelsize)
+        ax.set_ylabel(labely,fontsize=labelsize)
+        
+        ax.set_xticks(np.arange(len(ids)))
+        ax.set_yticks(np.arange(len(ids)))
+        ax.set_xticklabels(ids,fontsize=ticklabelsize,rotation=90)
+        ax.set_yticklabels(ids,fontsize=ticklabelsize)
+        
+        ax.tick_params(axis="x", bottom=True, top=True, 
+                       labelbottom=True, labeltop=True)
+        ax.tick_params(axis="y", left=True, right=True, 
+                       labelleft=True, labelright=True)
+        ax.set_xlim(-0.5,len(ids)+0.5)
+        
+        return fig,ax,cax
         
 

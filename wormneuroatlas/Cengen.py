@@ -50,7 +50,8 @@ class Cengen:
     def get_gene_names(self,th):
         return self.gene_names[th]
         
-    def get_expression(self, gene_cis=None, gene_wbids=None, gene_names=None,
+    def get_expression(self, gene_cis=None, gene_wbids=None, 
+                       gene_names=None, gene_seq_ids=None,
                        neuron_cis=None, neuron_ids=None,
                        th=4):
         '''Get gene expression for given genes and neurons.
@@ -65,6 +66,10 @@ class Cengen:
             1). Only used if gene_cis is None. Default: None.
         gene_names: array_like of strings (optional)
             Gene names. Only used if both gene_cis and gene_wbids are None.
+            Default: None.
+        gene_seq_ids: array_like of strings (optional)
+            Gene sequence IDs. Only used if gene_names is not None. If a gene
+            name is unknown, an attempt is made to match the sequence ID. 
             Default: None.
         neuron_cis: "all" or array_like of int (optional)
             CeNGEN indices of the neurons. If None or "all", all are selected.
@@ -109,13 +114,6 @@ class Cengen:
         
         expression = self.gene_expression[th][neuron_cis][:,gene_cis]
         
-        #expression = self.slice_h5_2d(self.gene_expression[threshold],
-        #                              neuron_cis,gene_cis)
-        # Apply mask given the threshold on the confidence
-        #conf_mask = self.slice_h5_2d(self.confidence_mask[threshold],
-        #                             neuron_cis,gene_cis)
-        #expression *= conf_mask
-        
         # Reapply mask for unknown genes
         expression[:,unknown_genes] = 0
         
@@ -123,7 +121,8 @@ class Cengen:
         
     
     def parse_genes_input(self,th=4,
-                          gene_cis=None, gene_wbids=None, gene_names=None):
+                          gene_cis=None, gene_wbids=None, 
+                          gene_names=None, gene_seq_ids=None):
         '''Parses flexible input of gene selection.
         
         Parameters
@@ -136,6 +135,13 @@ class Cengen:
             1). Only used if gene_cis is None. Default: None.
         gene_names: array_like of strings (optional)
             Gene names. Only used if both gene_cis and gene_wbids are None.
+            Default: None.
+        gene_seq_ids: array_like of strings (optional)
+            Gene sequence IDs. If gene_names is not None and a gene name is 
+            unknown, an attempt is made to match the sequence ID. This is 
+            necessary because some genes are labeled with their sequence ID
+            and not with a name. If gene_cis, gene_wbids, and gene_names are 
+            None, then gene_seq_ids are used independently to query for genes. 
             Default: None.
             
         Returns
@@ -169,8 +175,27 @@ class Cengen:
             # If names are passed, use the WormBase instance to transform those
             # names to WormBase IDs and then transform the latter to CeNGEN IDs.
             gene_cis = []
-            for gname in gene_names:
+            for iname in np.arange(len(gene_names)):
+                gname = gene_names[iname]
                 match = np.where(gname==self.gene_names[th])[0]
+                if len(match)>0:
+                    gene_cis.append(match[0])
+                else:
+                    if gene_seq_ids is not None:
+                        seq_id = gene_seq_ids[iname]
+                        match = np.where(seq_id==self.gene_names[th])[0]
+                        if len(match)>0:
+                            gene_cis.append(match[0])
+                        else:
+                            gene_cis.append(-1)
+                    else:
+                        gene_cis.append(-1)
+                        
+        elif gene_seq_ids is not None:
+            gene_cis = []
+            for iseq in np.arange(len(gene_seq_ids)):
+                seq_id = gene_seq_ids[iseq]
+                match = np.where(seq_id==self.gene_seq_ids[th])[0]
                 if len(match)>0:
                     gene_cis.append(match[0])
                 else:
