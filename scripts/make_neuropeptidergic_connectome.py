@@ -3,6 +3,12 @@ import wormneuroatlas as wa
 
 # Create NeuroAtlas object
 watlas = wa.NeuroAtlas()
+
+# This script will generate the neuropeptidergic extrasynaptic connectome 
+# (pep_esconn), which can be combined with the monoaminergic connectome from
+# Bentley et al. 2016, which is
+ma_esconn = watlas.get_monoaminergic_connectome()
+
 # Supplement the peptide/GPCR dataset with previous literature. Not done 
 # automatically because older literature is not as systematic in measuring the
 # EC50.
@@ -23,17 +29,20 @@ gpcr_exp = watlas.get_gene_expression(gene_names=gpcr_names,
                                       
 # Make the extrasynaptic connectome (esconn) map for neuropeptide/GPCR
 pep_esconn = np.zeros((watlas.neuron_n,watlas.neuron_n))
+# Store also the peptide/GPCR combinations (use pep_connectome_extract_combos.py
+# to extract the combinations for selected pairs of neurons).
 pep_gpcr_combo = np.empty((watlas.neuron_n,watlas.neuron_n),dtype=object)
+
 for j in np.arange(watlas.neuron_n):
-    print(str(j)+"\r",end="")
     # Find the peptides expressed in the upstream neuron j
     pep_expressed = peptide_names[pep_exp[j]!=0]
-    # Find the GPCRs that bind to those peptides. Get the sequence IDs.
+    # Find the GPCRs that bind to those peptides. Get the sequence IDs instead
+    # of the names.
     gpcr_binding_seq_ids = \
           watlas.pepgpcr.get_gpcrs_binding_to(pep_expressed,return_seq_ids=True)
     
     for i in np.arange(watlas.neuron_n):
-        # Find the GPCR expressed in the downstream neuron i
+        # Find the GPCRs expressed in the downstream neuron i
         gpcr_expressed = gpcr_seq_ids[gpcr_exp[i]!=0]
         
         # Count the number of GPCRs expressed in the downstream neuron that
@@ -48,6 +57,9 @@ for j in np.arange(watlas.neuron_n):
                 if gp in gpcr_expressed: 
                     pep_esconn[i,j]+=1
                     pep_gpcr_combo[i,j].append(pep_expressed[pep_i]+"\t"+gp)
+        
+        # Visualize how many neurons have been processed.
+        print(str(j)+"\r",end="")
                     
 # Save pep/gpcr combos
 np.save("pep_connectome_pep_gpcr_combo.npy",pep_gpcr_combo,allow_pickle=True)

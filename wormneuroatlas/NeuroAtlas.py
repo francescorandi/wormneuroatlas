@@ -1532,6 +1532,9 @@ class NeuroAtlas:
         print("get_esconn changed ^ to +")
         return self.esconn_ma+self.esconn_np
         
+    def get_monoaminergic_connectome(self):
+        return self.esconn_ma
+        
     def get_effective_esconn(self,maxit=100):
         escon = self.get_esconn()
         eescon = np.copy(escon)
