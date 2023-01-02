@@ -596,6 +596,12 @@ class NeuroAtlas:
         self.occ1 = {}
         self.occ1["wt"] = self.funatlas_h5["wt"]["occ1"][:]
         self.occ1["unc31"] = self.funatlas_h5["unc31"]["occ1"][:]
+        
+        # check that the ordering of the kernel keys is consistent with the 
+        # definition used here
+        if not self.funatlas_h5["kernels_keys"] == "g,factor,power_t,branch":
+            print("There is a problem with the ordering of the kernel keys.")
+            print("DO NOT USE THE KERNELS BEFORE SOLVING THE PROBLEM.")
     
     def get_signal_propagation_map(self,strain="wt"):
         return self.dFF[strain]
@@ -619,9 +625,20 @@ class NeuroAtlas:
     def get_signal_propagation_q(self,strain="wt"):
         return self.q[strain]
         
-    def get_kernels(self):
-        print("Kernels to be imported. Soon available.")
-        return None
+    def get_kernel(self, i, j, strain="wt"):
+    
+        k = self.funatlas_h5[strain]["kernels"][i,j][:]
+        if len(k)>0:
+            k = k.reshape((len(k)//4,4))
+            exp = []
+            for k_ in k:
+                exp.append({"g":k_[0],"factor":k_[1],
+                             "power_t":k_[2],"branch":k_[3]})
+                             
+            kernel = wa.ExponentialConvolution_min(exp)
+            return kernel
+        else:
+            return None
         
             
     #######################
