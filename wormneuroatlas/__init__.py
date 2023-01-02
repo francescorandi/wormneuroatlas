@@ -1,4 +1,8 @@
 from .NeuroAtlas import NeuroAtlas
-from .WormBase import WormBase
+try:
+    from .WormBase import WormBase
+except:
+    print("WormBase not available. Likely because libcurl is missing (see "+\
+          "error below for details). To install libcurl, see the README)")
 from .Cengen import Cengen
 from .PeptideGPCR import PeptideGPCR
