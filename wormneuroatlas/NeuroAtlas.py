@@ -76,6 +76,7 @@ class NeuroAtlas:
                                 self.merge_AWC)
         self.neuron_ids = np.unique(self.neuron_ids)
         self.n_neurons = self.neuron_n = len(self.neuron_ids)
+        self.merger = self.get_merger()
         
         # Load classifications of neurons into head and pharynx, and 
         # repeat approximation done above.
@@ -99,8 +100,9 @@ class NeuroAtlas:
         try:
             self.wormbase = wa.WormBase()
         except:
-            print("Wormbase not available, likely because libcurl is missing.")
-            print("See README.")
+            # WormBase could not be loaded, likely because libcurl is missing.
+            # Not printing anything here because the __init__.py does already.
+            pass
         self.cengen = wa.Cengen()
         self.pepgpcr = wa.PeptideGPCR()
         
@@ -244,7 +246,7 @@ class NeuroAtlas:
             
         if iter_input: return out_ids
         else: return out_ids[0]
-        
+    
     def ids_to_ai(self,ids):
         '''Converts IDs to atlas indices.
         
@@ -292,6 +294,92 @@ class NeuroAtlas:
     def ids_to_ais(self,*args,**kwargs):
         '''alias'''
         return self.ids_to_ai(*args,**kwargs)
+        
+    def get_merger(self):
+        ''' Build the merger[i] = [k,l] that says that neurons k,l have
+        been merged into neuron i.
+        
+        Returns
+        -------
+        merger: numpy.ndarray
+            The length of each element of merger is the number of neurons that
+            have been merged into each class.
+        '''
+        
+        if self.merge_bilateral or self.merge_dorsoventral or \
+           self.merge_numbered or self.merge_AWC:
+            
+            merger = np.empty(self.neuron_n,dtype=object)
+            for i in np.arange(len(merger)): merger[i] = []
+            
+            for k in np.arange(len(self._neuron_ids)):
+                ai = self.ids_to_ai([self._neuron_ids[k]])[0]
+                merger[ai].append(k)
+            
+        else:
+            merger = np.arange(self.neuron_n).reshape((self.neuron_n,1))
+            
+        return merger
+        
+    def merge(self, A, merger=None):
+        '''Given an input array or matrix, the function merges it, based on the
+        neuron-class approximation chosen at instantiation, by averaging the 
+        elements of the matrices in the original reference frame. 
+        
+        Parameters
+        ----------
+        A: numpy.ndarray
+            1-D or 2-D array to be merged. 
+        
+        merger: array_like
+            merger[i] is the list [k,] of the neuron k that have been merged
+            into class i. If None, A is merged based on the internally stored
+            merger (that merges completely unmerged neurons into the approximate
+            classes chosen at instantiation). Default: None.
+            
+        Returns
+        -------
+        B: array_like
+            Merged version of A. Dimensionality and dtype are the same as for A.
+        '''
+        
+        if merger is None:
+            if not (self.merge_bilateral or self.merge_dorsoventral or\
+                    self.numbered or self.merge_AWC):
+                # Nothing to be merged based on the approximations.
+                return A
+            else:
+                merger = self.merger
+        
+        completeness = np.zeros(len(A),dtype=bool)
+        if check_completeness:
+            for m in merger:
+                completeness[m] = True
+        
+        if not np.all(completeness):
+            print("The merger is incomplete. Returning the unmerged array.")
+            return A
+        
+        if len(A.shape)==1:
+            B = np.zeros(len(merger),dtype=A.dtype)
+            
+            for i in np.arange(len(meger)):
+                B[i] = np.average(A[np.array(merger[i])])
+            
+        elif len(A.shape)==2:
+            B = np.zeros((len(merger),len(merger)),dtype=A.dtype)
+            
+            for i in np.arange(len(meger)):
+                for j in np.arange(len(meger)):
+                    b = B[np.array(merger[i])][:,np.array(merger[j])]
+                    B[i,j] = np.average(b)
+            
+        else:
+            raise ValueError("Input can only be 1 or 2 dimensional.")
+            
+        
+        return B
+            
             
     def load_ganglia(self):
         # Load the whole object
@@ -575,27 +663,43 @@ class NeuroAtlas:
         self.dFF = {}
         self.dFF["wt"] = self.funatlas_h5["wt"]["dFF"][:]
         self.dFF["unc31"] = self.funatlas_h5["unc31"]["dFF"][:]
+        self.dFF["wt"] = self.merge(self.dFF["wt"])
+        self.dFF["unc31"] = self.merge(self.dFF["unc31"])
         
         # delta F/F averaged over a time window (each i,j contains all the 
         # corresponding trials)
         self.dFF_all = {}
         self.dFF_all["wt"] = self.funatlas_h5["wt"]["dFF_all"][:]
         self.dFF_all["unc31"] = self.funatlas_h5["unc31"]["dFF_all"][:]
+        self.dFF_all["wt"] = self.merge(self.dFF_all["wt"])
+        self.dFF_all["unc31"] = self.merge(self.dFF_all["unc31"])
         
         # q values 
         self.q = {}
         self.q["wt"] = self.funatlas_h5["wt"]["q"][:]
         self.q["unc31"] = self.funatlas_h5["unc31"]["q"][:]
+        self.q["wt"] = self.merge(self.q["wt"])
+        self.q["unc31"] = self.merge(self.q["unc31"])
         
         # equivalence-testing q values
         self.q_eq = {}
         self.q_eq["wt"] = self.funatlas_h5["wt"]["q_eq"][:]
         self.q_eq["unc31"] = self.funatlas_h5["unc31"]["q_eq"][:]
+        self.q_eq["wt"] = self.merge(self.q_eq["wt"])
+        self.q_eq["unc31"] = self.merge(self.q_eq["unc31"])
+        if self.merge_bilateral or self.merge_dorsoventral or \
+           self.merge_numbered or self.merge_AWC:
+            print("IMPORTANT NOTE: Because of the neuron merging, q values",
+                  "have been merged and AVERAGED. This is not mathematically",
+                  "accurate from the statistical point of view. Do not use",
+                  "q values like this. New implementation soon.")
         
         # occurrence matrix: each entry is the length of dFF_all[i,j]
         self.occ1 = {}
         self.occ1["wt"] = self.funatlas_h5["wt"]["occ1"][:]
         self.occ1["unc31"] = self.funatlas_h5["unc31"]["occ1"][:]
+        self.occ1["wt"] = self.merge(self.occ1["wt"])
+        self.occ1["unc31"] = self.merge(self.occ1["unc31"])
         
         # check that the ordering of the kernel keys is consistent with the 
         # definition used here
@@ -626,16 +730,27 @@ class NeuroAtlas:
         return self.q[strain]
         
     def get_kernel(self, i, j, strain="wt"):
-    
-        k = self.funatlas_h5[strain]["kernels"][i,j][:]
-        if len(k)>0:
-            k = k.reshape((len(k)//4,4))
-            exp = []
-            for k_ in k:
-                exp.append({"g":k_[0],"factor":k_[1],
-                             "power_t":k_[2],"branch":k_[3]})
-                             
+        '''Return the average kernel for pair i<-j. Note that if neurons have 
+        been merged upon instantiation of the NeuroAtlas class, the kernel
+        that is returned is '''
+        
+        exp = []
+        
+        count = 0
+        for ip in self.merger[i]:
+            for jp in self.merger[j]:
+                k = self.funatlas_h5[strain]["kernels"][i,j][:]
+                if len(k)>0:
+                    count += 1
+                    k = k.reshape((len(k)//4,4))
+                    
+                    for k_ in k:
+                        exp.append({"g":k_[0],"factor":k_[1],
+                                     "power_t":k_[2],"branch":k_[3]})
+                                     
+        if len(exp>0):
             kernel = wa.ExponentialConvolution_min(exp)
+            kernel.multiply_scalar_inplace(1.0/count)
             return kernel
         else:
             return None
@@ -649,7 +764,7 @@ class NeuroAtlas:
     #######################
     #######################
         
-    def load_aconnectome_from_file(self,chem_th=3,gap_th=2,exclude_white=False,
+    def load_aconnectome_from_file(self,chem_th=0,gap_th=0,exclude_white=False,
                                    average=False):
         self.aconn_chem, self.aconn_gap = \
                     self.get_aconnectome_from_file(chem_th,gap_th,exclude_white,

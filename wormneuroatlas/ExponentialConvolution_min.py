@@ -78,3 +78,7 @@ class ExponentialConvolution_min:
             out += factor*mult*np.exp(-g*x)
             
         return out
+        
+    def multiply_scalar_inplace(self,factor):
+        for i in np.arange(len(self.exp[-1])):
+            self.exp[-1][i]["factor"]*=factor
