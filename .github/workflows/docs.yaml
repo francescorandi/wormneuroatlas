@@ -1,5 +1,8 @@
 name: website
 
+- name: Github Action for curl
+  uses: wei/curl@v1.1.1
+
 # build the documentation whenever there are new commits on main
 on:
   push:
