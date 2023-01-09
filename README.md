@@ -1,6 +1,8 @@
 # wormneuroatlas
 Neural signal propagation atlas [1], genome [2], and single-cell transcriptome [3], neuropeptide/GPCR deorphanization [4], anatomical connectome [5,6], and monoaminergic connectome [7] all in one place. Worm Neuro Atlas allows to build a basic version of the neuropeptidergic connectome [8] ([8] contains more detailed analysis). Please cite the code if you use it, along with the papers containing the datasets you use.
 
+**Read the documentation here** https://francescorandi.github.io/wormneuroatlas/
+
 ## Installation
 Note: Interfacing with WormBase requires the curl library. If the library is not present, the Worm Neuro Atlas will work but the WormBase functionalities will not be available. On Debian/Ubuntu, you can install libcurl it via
 ```
