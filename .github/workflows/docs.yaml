@@ -17,12 +17,13 @@ jobs:
   # Build the documentation and upload the static HTML files as an artifact.
   build:
     runs-on: ubuntu-latest
+    - name: Install cURL Headers
+      run: sudo apt-get install libcurl4-openssl-dev
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - uses: wei/curl@v1.1.1
 
       # ADJUST THIS: install all dependencies (including pdoc)
       - run: pip install -e .
