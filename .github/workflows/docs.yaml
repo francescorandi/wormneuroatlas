@@ -20,9 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-      - uses: wei/curl@v1.1.1
         with:
           python-version: '3.11'
+      - uses: wei/curl@v1.1.1
 
       # ADJUST THIS: install all dependencies (including pdoc)
       - run: pip install -e .
