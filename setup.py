@@ -11,6 +11,7 @@ setup(name='wormneuroatlas',
       author_email='francesco.randi@gmail.com',
       install_requires=[
           'numpy',
+          'matplotlib',
           'pycurl',
           'certifi',
           'pdoc',
