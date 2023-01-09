@@ -95,6 +95,8 @@ class NeuroAtlas:
         self.pharynx_ids = np.unique(self.pharynx_ids)
         self.pharynx_ai = self.ids_to_ai(self.pharynx_ids)
         
+        self.load_aconnectome_from_file()
+        self.load_extrasynaptic_connectome_from_file()
         self.load_signal_propagation_atlas()
         
         try:
@@ -345,7 +347,7 @@ class NeuroAtlas:
         
         if merger is None:
             if not (self.merge_bilateral or self.merge_dorsoventral or\
-                    self.numbered or self.merge_AWC):
+                    self.merge_numbered or self.merge_AWC):
                 # Nothing to be merged based on the approximations.
                 return A
             else:
@@ -703,7 +705,8 @@ class NeuroAtlas:
         
         # check that the ordering of the kernel keys is consistent with the 
         # definition used here
-        if not self.funatlas_h5["kernels_keys"] == "g,factor,power_t,branch":
+        if not self.funatlas_h5.attrs["kernels_keys"].decode("utf-8") == \
+               "g,factor,power_t,branch":
             print("There is a problem with the ordering of the kernel keys.")
             print("DO NOT USE THE KERNELS BEFORE SOLVING THE PROBLEM.")
     
@@ -804,8 +807,9 @@ class NeuroAtlas:
         # Reminder of the convention for AWCON and AWCOFF, since the anatomical
         # data has AWCL and AWCR.
         if not self.merge_AWC and not self.merge_bilateral and self.verbose:
-            print("Using AWCL->AWCOFF and AWCR->AWCON to allow comparison "+\
-                  "with the anatomical connectome.")
+            print("In loading the anatomical connectome, the following "+\
+                  "conventions are used to allow for its comparison with the "+\
+                  "other datasets: AWCL->AWCOFF and AWCR->AWCON")
         
         sources_used = 0
         for source in self.aconn_sources:
@@ -921,6 +925,21 @@ class NeuroAtlas:
                 
         return chem, gap
         
+    def get_anatomical_connectome(self):
+        return self.aconn_chem + self.aconn_gap
+    
+    def get_aconn(self,*args,**kwargs):
+        return self.get_anatomical_connectome(*args,**kwargs)
+        
+    def get_gap_junctions(self):
+        return self.aconn_gap
+        
+    def get_electrical_synapses(self,*args,**kwargs):
+        return self.get_gap_junctions(*args,**kwargs)
+        
+    def get_chemical_synapses(self):
+        return self.aconn_chem
+        
     def get_effective_aconn(self,s=1):
         '''Returns the effective anatomical connectome computed with a given 
         gain for the connections.
@@ -1032,7 +1051,8 @@ class NeuroAtlas:
             # c_ij = c_ik c_kj
             for i in np.arange(len(c)):
                 for j in np.arange(len(c)):
-                    c[i,j] = old_c[i,j]+np.sum(np.delete(old_c[i,:]*old_c[:,j],(i,j)))
+                    c[i,j] = old_c[i,j]+\
+                             np.sum(np.delete(old_c[i,:]*old_c[:,j],(i,j)))
             #c *= orig_max/np.max(c)
             if np.all(c==old_c): 
                 print("Aconnectome converged in",p); break
@@ -1255,7 +1275,8 @@ class NeuroAtlas:
             paths_final_ids = paths_final.copy()
             for i_p in np.arange(len(paths_final)):
                 for q in np.arange(len(paths_final[i_p])):
-                    paths_final_ids[i_p][q] = self.neuron_ids[paths_final_ids[i_p][q]]
+                    paths_final_ids[i_p][q] = \
+                        self.neuron_ids[paths_final_ids[i_p][q]]
             
             return paths_final, paths_final_ids
         else:
@@ -1283,8 +1304,8 @@ class NeuroAtlas:
         
         for i in np.arange(n):
             for k in np.arange(n):
-                # c_new[i,k] is True if there is at least one c[i,:] that is also
-                # in c[k,:].
+                # c_new[i,k] is True if there is at least one c[i,:] that is 
+                # also in c[k,:].
                 c_new[i,k] = np.sum(c[i,:]*c[k,:])!=0
                 
         return c_new
@@ -1370,7 +1391,7 @@ class NeuroAtlas:
         unc7_9_to_others = np.zeros(self.n_neurons)
         
         for ai in np.arange(self.n_neurons):
-            u79 = (self.inx_exp_levels[ai,unc7_i]+self.inx_exp_levels[ai,unc9_i])
+            u79 = self.inx_exp_levels[ai,unc7_i]+self.inx_exp_levels[ai,unc9_i]
             if np.sum(self.inx_exp_levels[ai])>0:
                 unc7_9_to_others[ai] = u79/np.sum(self.inx_exp_levels[ai])
         
@@ -1423,7 +1444,8 @@ class NeuroAtlas:
     def load_neuropeptide_expression_from_file(self):
         '''Legacy.'''
         if not self.merge_bilateral:
-            print("neuropeptide expression level available only with merge_bilateral")
+            print("neuropeptide expression level available only with",
+                  "merge_bilateral.")
             return None
         else:
             f = open(self.module_folder+self.fname_neuropeptides,"r")
@@ -1457,7 +1479,8 @@ class NeuroAtlas:
     def load_neuropeptide_receptor_expression_from_file(self):
         '''Legacy.'''
         if not self.merge_bilateral:
-            print("neuropeptide receptor expression level available only with merge_bilateral")
+            print("neuropeptide receptor expression level available only with",
+                  "merge_bilateral")
             return None
         else:
             f = open(self.module_folder+self.fname_neuropeptide_receptors,"r")
@@ -1530,6 +1553,121 @@ class NeuroAtlas:
         gene_exp = self.cengen.get_expression(*args,**kwargs)
         
         return gene_exp
+        
+    def supplement_peptide_gpcr(self):
+        self.pepgpcr.supplement()
+        print("Supplementing peptide/GPCR combinations with older datasets.")
+        
+        return None
+        
+    def get_gpcrs_binding_to(self,*args,**kwargs):
+        return self.pepgpcr.get_gpcrs_binding_to(*args,**kwargs)
+        
+    def get_peptides_binding_to(self,*args,**kwargs):
+        return self.pepgpcr.get_peptides_binding_to(*args,**kwargs)
+        
+    def get_gpcr_names(self,*args,**kwargs):
+        return self.pepgpcr.get_gpcr_names(*args,**kwargs)
+        
+    def get_peptide_names(self,*args,**kwargs):
+        return self.pepgpcr.get_peptide_names(*args,**kwargs)
+    
+    def get_gpcr_seq_id_from_name(self,*args,**kwargs):
+        return self.pepgpcr.get_gpcr_seq_id_from_name(*args,**kwargs)
+        
+    def get_peptidergic_connectome(self,neuron_ids_from=None,neuron_ids_to=None,
+                                   return_combos=False):
+        '''Returns the neuronpeptidergic connectome based on CeNGEN peptide and
+        GPCR expression data and the peptide/GPCR binding screen. 
+        
+        Parameters
+        ----------
+        neuron_ids_from: array_like of str or None (optional)
+            Array of the IDs of the upstream neuron from which neuropeptide are
+            released. If None, all neurons are included. Default: None.
+        neuron_ids_to: array_like of str or None (optional)
+            Array of the IDs of the downstream neuron to which the neuropeptide
+            signal. If None, all neurons are includede. Default: None.
+        return_combo: bool (optional)
+            Whether to return also the list of peptide/GPCR combinations for
+            each neuron pair. Default: False.
+            
+        Returns
+        -------
+        pep_esconn: 2D numpy.ndarray of int
+            Peptidergic extrasynaptic connectome. pep_esconn[i,j] is the number
+            of peptide/GPCR combinations for the connection i<-j. Note that i
+            and j are indices in the neuron_ids_from and neuron_ids_to arrays,
+            so if either of those arguments is not None, i or j might not 
+            correspond to NeuroAtlas indices.
+        pep_gpcr_combo: 2D numpy.ndarray of lists
+            Peptide/GPCR combinations. pep_gpcr_combo[i,j] is a list of list
+            containing the peptide/GPCR combinations for the connection i<-j.
+            For example, pep_gpcr_combo[i,j] = [['FLP-1','FLPR-1'],[...,...]].
+            Only returned if return_combo is True.        
+        '''
+        
+        if neuron_ids_to is None:
+            neuron_ids_to = self.neuron_ids
+        if neuron_ids_from is None:
+            neuron_ids_from = self.neuron_ids
+        
+        n_to = len(neuron_ids_to)
+        n_from = len(neuron_ids_from)
+        
+        # Get the list of all peptide and GPCR names contained in the 
+        # deorphanization screen.
+        peptide_names = np.array(self.get_peptide_names(trim_isoforms=True))
+        gpcr_names = np.array(self.get_gpcr_names(trim_isoforms=True))
+        gpcr_seq_ids = np.array(self.get_gpcr_seq_id_from_name(gpcr_names))
+                                                    
+        # Get the neuron-resolved expression of those peptides and GPCR. For the
+        # GPCRs, supplement the names with the sequence IDs, as some entries use
+        # the sequence ID instead of the name.
+        pep_exp = self.get_gene_expression(gene_names=peptide_names,
+                                           neuron_ids=neuron_ids_from)
+        gpcr_exp = self.get_gene_expression(gene_names=gpcr_names,
+                                            gene_seq_ids=gpcr_seq_ids,
+                                            neuron_ids=neuron_ids_to)
+                                            
+        # Make the extrasynaptic connectome (esconn) map for neuropeptide/GPCR
+        pep_esconn = np.zeros((n_to,n_from))
+        # Store also the peptide/GPCR combinations.
+        if return_combos:
+            pep_gpcr_combo = np.empty((n_to,n_from),dtype=object)
+        
+        for j in np.arange(n_from):
+            # Find the peptides expressed in the upstream neuron j
+            pep_expressed = peptide_names[pep_exp[j]!=0]
+            # Find the GPCRs that bind to those peptides. Get the sequence IDs 
+            # instead of the names.
+            gpcr_binding_seq_ids = \
+                  self.get_gpcrs_binding_to(pep_expressed,return_seq_ids=True)
+            
+            for i in np.arange(n_to):
+                # Find the GPCRs expressed in the downstream neuron i
+                gpcr_expressed = gpcr_seq_ids[gpcr_exp[i]!=0]
+                
+                # Count the number of GPCRs expressed in the downstream neuron 
+                # that are also receptors for the peptides expressed in the 
+                # upstream neuron. gpcrs requires two nested iterations because 
+                # gpcrs[neuropeptide] is a list of all gpcrs binding to that 
+                # neuropeptide.
+                if return_combos: pep_gpcr_combo[i,j] = []
+                for pep_i in np.arange(len(gpcr_binding_seq_ids)):
+                    for gp_i in np.arange(len(gpcr_binding_seq_ids[pep_i])):
+                        gp = gpcr_binding_seq_ids[pep_i][gp_i]
+                        if gp in gpcr_expressed: 
+                            pep_esconn[i,j]+=1
+                            if return_combos:
+                                pep_gpcr_combo[i,j].append(
+                                                [pep_expressed[pep_i],gp])
+                            
+        if return_combos:
+            return pep_esconn, pep_gpcr_combo
+        else:
+            return pep_esconn
+        
         
     
     ##############################################
