@@ -13,6 +13,7 @@ setup(name='wormneuroatlas',
           'numpy',
           'pycurl',
           'certifi',
+          'pdoc',
       ],
       packages=['wormneuroatlas'],
       package_data={'wormneuroatlas': 
