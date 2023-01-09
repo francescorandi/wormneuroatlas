@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: sudo apt-get update
-      - run: sudo apt-get install libcurl4-openssl-dev libssl-dev libhdf5
+      - run: sudo apt-get install libcurl4-openssl-dev libssl-dev libhdf5-dev
 
       # ADJUST THIS: install all dependencies (including pdoc)
       - run: pip install -e .
