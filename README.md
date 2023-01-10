@@ -1,4 +1,4 @@
-# wormneuroatlas
+# Worm Neuro Atlas
 Neural signal propagation atlas [1], genome [2], and single-cell transcriptome [3], neuropeptide/GPCR deorphanization [4], anatomical connectome [5,6], and monoaminergic connectome [7] all in one place. Worm Neuro Atlas allows to build a basic version of the neuropeptidergic connectome [8] ([8] contains more detailed analysis). Please cite the code if you use it, along with the papers containing the datasets you use.
 
 **Read the documentation here** https://francescorandi.github.io/wormneuroatlas/
