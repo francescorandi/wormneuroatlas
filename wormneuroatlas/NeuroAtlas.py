@@ -16,7 +16,7 @@ class NeuroAtlas:
     '''Name of the file containing the expression levels of neuropeptide ''' \
     '''receptors'''
     module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
-    '''Folder of the pumpprobe module'''
+    '''Folder of the wormneuroatlas module'''
     
     aconn_sources = [
                      {"type": "whiteA", 
@@ -38,7 +38,8 @@ class NeuroAtlas:
                      ]
 
     def __init__(self,merge_bilateral=False,merge_dorsoventral=False,
-                 merge_numbered=False,merge_AWC=False,verbose=True,
+                 merge_numbered=False,merge_AWC=False,
+                 load_connectomes=True, verbose=True,
                  *args,**kwargs):
         '''Class initialization.
         
@@ -95,8 +96,14 @@ class NeuroAtlas:
         self.pharynx_ids = np.unique(self.pharynx_ids)
         self.pharynx_ai = self.ids_to_ai(self.pharynx_ids)
         
-        self.load_aconnectome_from_file()
-        self.load_extrasynaptic_connectome_from_file()
+        if load_connectomes:
+            self.load_aconnectome_from_file()
+            self.load_extrasynaptic_connectome_from_file()
+            self.aconn_loaded = True
+            self.esconn_loaded = True
+        else:
+            self.aconn_loaded = False
+            self.esconn_loaded = False
         self.load_signal_propagation_atlas()
         
         try:

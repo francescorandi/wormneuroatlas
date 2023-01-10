@@ -131,3 +131,4 @@ dmypy.json
 # Other
 *.~lock*
 wormneuroatlas/drafts.py
+scripts/snippets_for_paper.py

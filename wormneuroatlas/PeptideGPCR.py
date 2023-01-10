@@ -358,7 +358,7 @@ class PeptideGPCR:
    
     @staticmethod     
     def trim_isoforms(b,n=2,delimiter="-",trim_letters=True):
-        '''Trim isoform label ("-n" or last letter) from a name.
+        '''Trim isoform/variant label ("-n" or last letter) from a name.
         
         Parameters
         ----------
