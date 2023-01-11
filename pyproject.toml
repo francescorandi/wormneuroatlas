@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wormneuroatlas"
+version = "0.0.1"
+authors = [
+  { name="Francesco Randi", email="francesco.randi@gmail.com" },
+]
+description = "A Python package combining multimodal C. elegans’ neural datasets"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: GPL 3",
+    "Operating System :: OS Independent",
+]
+dependencies = ["numpy",
+                "matplotlib",
+                "pycurl",
+                "certifi",
+                "h5py",
+                "pdoc"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/francescorandi/wormneuroatlas"
+"Documentation" = "https://francescorandi.github.io/wormneuroatlas"
+"Reference" = "https://url.to.paper"
+"Bug Tracker" = "https://github.com/francescorandi/wormneuroatlas/issues"
