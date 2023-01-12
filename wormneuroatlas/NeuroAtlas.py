@@ -15,7 +15,7 @@ class NeuroAtlas:
     fname_neuropeptide_receptors = "GenesExpressing-neuropeptide-receptors.csv"
     '''Name of the file containing the expression levels of neuropeptide ''' \
     '''receptors'''
-    module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
+    module_folder = ""
     '''Folder of the wormneuroatlas module'''
     
     aconn_sources = [
@@ -52,6 +52,13 @@ class NeuroAtlas:
         merge_numbered: bool (optional)
             Whether to merge numbered neuron sets. Default: False.
         '''         
+        
+        if "\\" in wa.__file__:
+            self.folder_sep = char = "\\"
+        else:
+            self.folder_sep = char = "/"
+        self.module_folder = char.join(wa.__file__.split(char)[:-1])+char+\
+                             "data"+char
         
         # Load the full list of neuronal ids from file       
         self._neuron_ids = np.loadtxt(self.module_folder+self.fname_neuron_ids,
@@ -1551,6 +1558,21 @@ class NeuroAtlas:
             try: neuron_ids[0] 
             except: neuron_ids = np.array([neuron_ids])
             neuron_ais = self.ids_to_ais(neuron_ids)
+            # Check that all neuron IDs were found with the current IDs 
+            # approximation.
+            for q in np.arange(len(neuron_ais)):
+                if neuron_ais[q]==-1:
+                    e=neuron_ids[q]+" is not a valid ID with the current"+\
+                    "neuron IDs approximation:\n"+\
+                    "merge_bilateral "+str(self.merge_bilateral)+"\n"+\
+                    "merge_dorsoventral "+str(self.merge_dorsoventral)+"\n"+\
+                    "merge_numbered "+str(self.merge_numbered)+"\n"+\
+                    "merge_AWC "+str(self.merge_AWC)+"\n"+\
+                    "If you did not set any neuron IDs approximation, "+\
+                    "you need to use individual neuron IDs, like AVAL "+\
+                    "and not AVA."
+                    raise ValueError(e)
+                    
             neuron_cis = self.cengen_is[neuron_ais]
         else:
             neuron_cis = self.cengen_is
@@ -1581,6 +1603,9 @@ class NeuroAtlas:
     
     def get_gpcr_seq_id_from_name(self,*args,**kwargs):
         return self.pepgpcr.get_gpcr_seq_id_from_name(*args,**kwargs)
+    
+    def get_gpcr_name_from_seq_id(self,*args,**kwargs):
+        return self.pepgpcr.get_gpcr_name_from_seq_id(*args,**kwargs)
         
     def get_peptidergic_connectome(self,neuron_ids_from=None,neuron_ids_to=None,
                                    return_combos=False):
@@ -1974,14 +1999,66 @@ class NeuroAtlas:
         
     @classmethod
     def plot_matrix(cls, A, ids, alphas=None, 
-                    cmap="Spectral_r", vmax=0.4, vmin=None,
-                    black_diag=True, gray_nans=True, 
+                    cmap="Spectral_r", vmax=None, vmin=None,
+                    black_diag=True, 
                     fig=None, figsize=(20,20), 
-                    label=r'$\langle\Delta F/F\rangle_t$', alphalabel="1-q",
+                    label="", alphalabel="",
                     labelx="stimulated", labely="responding",
                     labelsize=30,ticklabelsize=6,
                     alphamin=0.0,alphamax=1.0):
+        '''Plot a matrix, add IDs as tick labels, and optionally use a second
+        matrix to set gray levels to indicate, for example, confidence on the
+        values in the first matrix. If this second matrix is passed, the 
+        function generates a 2D colorbar that fades into gray for low 
+        confidence.
         
+        Parameters
+        ----------
+        A: 2D numpy.ndarray
+            Matrix to be plotted.
+        ids: array_like of str
+            IDs to use as tick labels. They are used for both the x and y axes.
+        alphas: 2D numpy.ndarray (optional)
+            If not None, it is used to set the gray level of each entry in the
+            matrix A. For example, it can represent the statistical confidence
+            of the values in the matrix A. Default: None.
+        cmap: str (optional)
+            Colormap to use. Default: Spectral_r
+        black_diag: bool (optional)
+            Whether to black out diagonal entries. Default: True.
+        fig: matplotlib figure (optional)
+            If not None, this figure will be used for plotting. Default: None.
+        figsize: array_like (2,) (optional)
+            Figure size. Default: (20,20)
+        label: str (optional)
+            Label that will appear next to the colorbar. Default: "".
+        alphalabel: str (optional)
+            Label of the alpha/gray level. Default: "".
+        labelx: str (optional)
+            Label of the x axis. Default: "Stimulated".
+        labely: str (optional)
+            Label of the y axis. Default: "Responding".
+        labelsize: int (optional)
+            Label size. Default: 30.
+        ticklabelsize: int (optional)
+            Size of the tick labels. Default: 6.
+        alphamin: float (optional)
+            Minimum value for the clipping of the alpha values. Default: 0.0.
+        alphamax: float (optional)
+            Maximum value for the clipping of the alpha values. Default: 1.0.
+            
+        Returns
+        -------
+        fig: matplotlib figure
+            Matplotlib figure containing the plot.
+        ax: matplotlib axis
+            Axis containing the plot.
+        cax: matplotlib axis
+            Axis containing the 2D colorbar. Returned only if alphas is not 
+            None.
+        '''            
+        
+                    
         if fig is None:
             cfn = plt.gcf().number
             if len(plt.gcf().axes) != 0: cfn += 1
@@ -1996,16 +2073,21 @@ class NeuroAtlas:
             ax = fig.add_subplot(gs[0,:9])
             cax = fig.add_subplot(gs[0,9:])
             
+            # Adjust based on alphamin and alphamax
+            alphas = np.clip((alphas-alphamin)/(alphamax-alphamin),0,1)
+            
+        if vmax is None:
+            vmax = np.nanmax(A)
+        
         if vmin is None:
             vmin = -vmax
         
-        if gray_nans:
-            ax.imshow(0.*np.ones_like(A),cmap="Greys",vmax=1,vmin=0)
-            blank_A = np.copy(A)
-            blank_A[~np.isnan(A)] = 0.1
-            ax.imshow(blank_A,cmap="Greys",vmin=0,vmax=1)
+        ax.imshow(0.*np.ones_like(A),cmap="Greys",vmax=1,vmin=0)
+        blank_A = np.copy(A)
+        blank_A[~np.isnan(A)] = 0.1
+        ax.imshow(blank_A,cmap="Greys",vmin=0,vmax=1)
             
-        im = ax.imshow(A,cmap=cmap,vmin=-vmax,vmax=vmax,
+        im = ax.imshow(A,cmap=cmap,vmin=vmin,vmax=vmax,
                        alpha=alphas,interpolation="nearest")
         
         if black_diag:
@@ -2018,7 +2100,7 @@ class NeuroAtlas:
         if alphas is None:
             plt.colorbar(im, label=label)
         else:
-            cls.make_alphacolorbar(cax,-vmax,vmax,0.1,alphamin,alphamax,2,
+            cls.make_alphacolorbar(cax,vmin,vmax,0.1,alphamin,alphamax,2,
                                     cmap=cmap,around=1,lbl_lg=True)
             cax.set_xlabel(alphalabel,fontsize=labelsize//2)
             cax.set_ylabel(label,fontsize=labelsize//2)
@@ -2038,6 +2120,9 @@ class NeuroAtlas:
                        labelleft=True, labelright=True)
         ax.set_xlim(-0.5,len(ids)+0.5)
         
-        return fig,ax,cax
+        if alphas is not None:
+            return fig,ax,cax
+        else:
+            return fig,ax
         
 

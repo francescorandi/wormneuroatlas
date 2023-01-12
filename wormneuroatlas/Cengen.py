@@ -3,11 +3,18 @@ import wormneuroatlas as wa
 
 class Cengen:
     
-    module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
-    '''Folder of the pumpprobe module'''
+    module_folder = ""
+    '''Folder of the wormneuroatlas module'''
     cengen_fname = "cengen.h5"
     
     def __init__(self,wormbase=None):
+        if "\\" in wa.__file__:
+            self.folder_sep = char = "\\"
+        else:
+            self.folder_sep = char = "/"
+        self.module_folder = char.join(wa.__file__.split(char)[:-1])+char+\
+                             "data"+char
+        
         self.h5 = h5py.File(self.module_folder+self.cengen_fname,"r")
         # Directly load neuron from file. These are the same for each 
         # threshold file.

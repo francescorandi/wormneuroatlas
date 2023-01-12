@@ -1,14 +1,21 @@
 import numpy as np, re, wormneuroatlas as wa
 
 class PeptideGPCR:
-    module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
-    '''Folder of the pumpprobe module'''
+    module_folder = ""
+    '''Folder of the wormneuroatlas module'''
     deorphan_fname = "deorphanization_media_6.csv"
     bentley_fname = "esconnectome_neuropeptides_Bentley_2016.csv"
     froonikcx_fname = "froonikcx_peptide_gpcr.txt"
     cached_seq_id_fname = "cached_seq_ids.txt"
     
     def __init__(self):
+        if "\\" in wa.__file__:
+            self.folder_sep = char = "\\"
+        else:
+            self.folder_sep = char = "/"
+        self.module_folder = char.join(wa.__file__.split(char)[:-1])+char+\
+                             "data"+char
+        
         # Load data from Beets et al. 2022
         data = np.loadtxt(self.module_folder+self.deorphan_fname, dtype=object,
                           skiprows=1,delimiter=",",usecols=(0,1,2,3,4,5))

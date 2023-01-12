@@ -70,5 +70,8 @@ print(np.allclose(pep_esconn2,pep_esconn))
 # Save pep/gpcr combos
 np.save("pep_connectome_pep_gpcr_combo.npy",pep_gpcr_combo,allow_pickle=True)
 
-plt.imshow(pep_esconn, aspect="auto")
+watlas.plot_matrix(pep_esconn, ids=watlas.neuron_ids,
+                   label="number of peptide/GPCR combinations", 
+                   cmap="viridis",vmin=0, vmax=None,
+                   black_diag=False)
 plt.show()

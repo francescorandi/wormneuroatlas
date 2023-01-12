@@ -5,10 +5,17 @@ import wormneuroatlas as wa
 class WormBase:
     
     gene_wbids_fname = "c_elegans.PRJNA13758.WS286.geneIDs.txt"
-    module_folder = "/".join(wa.__file__.split("/")[:-1])+"/data/"
-    '''Folder of the pumpprobe module'''
+    module_folder = ""
+    '''Folder of the wormneuroatlas module'''
     
     def __init__(self, gene_subset = None):
+        if "\\" in wa.__file__:
+            self.folder_sep = char = "\\"
+        else:
+            self.folder_sep = char = "/"
+        self.module_folder = char.join(wa.__file__.split(char)[:-1])+char+\
+                             "data"+char
+        
         self.load_gene_wbids()
         
         if gene_subset is not None:
