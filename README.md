@@ -1,15 +1,20 @@
 # Worm Neuro Atlas
 Neural signal propagation atlas [1], genome [2], and single-cell transcriptome [3], neuropeptide/GPCR deorphanization [4], anatomical connectome [5,6], and monoaminergic connectome [7] all in one place. Worm Neuro Atlas allows to build a basic version of the neuropeptidergic connectome [8] ([8] contains more detailed analysis). Please cite the code if you use it, along with the papers containing the datasets you use.
 
-**Read the documentation here** https://francescorandi.github.io/wormneuroatlas/
+**Read the full documentation here** https://francescorandi.github.io/wormneuroatlas/
 
-## Installation
-Note: Interfacing with WormBase requires the curl library. If the library is not present, the Worm Neuro Atlas will work but the WormBase functionalities will not be available. On Debian/Ubuntu, you can install libcurl it via
+## Requirements
+Interfacing with Worm Base requires the curl library. If the library is not present, the Worm Neuro Atlas will work but the Worm Base functionalities will not be available. On Windows, I was able to install and use `wormneuroatlas` without the need to install curl separately. If you encounter problems on Windows, let me know. On Debian/Ubuntu, libcurl can be installed via
 ```
 sudo apt install libcurl4-openssl-dev libssl-dev
 ```
 
-Soon, Worm Neuro Atlas will be available on PyPI. Currently, to install the Worm Neuro Atlas module, clone this repository and pip install the module, e.g. via
+## Installation
+`wormenuroatlas` can be installed via pip 
+```
+pip install wormneuroatlas
+```
+or by cloning this repository and pip install the module, e.g. via
 ```
 git clone git@github.com:francescorandi/wormneuroatlas.git
 cd wormneuroatlas
