@@ -15,6 +15,8 @@ sudo apt install libcurl4-openssl-dev libssl-dev
 `wormenuroatlas` can be installed via pip 
 ```
 pip install wormneuroatlas
+# or
+python -m pip install wormneuroatlas
 ```
 or by cloning this repository and pip install the module, e.g. via
 ```
