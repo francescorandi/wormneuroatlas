@@ -5,12 +5,6 @@ Neural signal propagation atlas [1], genome [2], and single-cell transcriptome [
 
 **Run a demo of Worm Neuro Atlas in a Jupyter notebook on Colab here** https://colab.research.google.com/drive/1j59Mv_PSaD4Nj2ITNDQWVxWfrl6ssqXy?usp=sharing
 
-## Requirements
-Interfacing with Worm Base requires the curl library. If the library is not present, the Worm Neuro Atlas will work but the Worm Base functionalities will not be available. On Windows, I was able to install and use `wormneuroatlas` without the need to install curl separately. If you encounter problems on Windows, let me know. On Debian/Ubuntu, libcurl can be installed via
-```
-sudo apt install libcurl4-openssl-dev libssl-dev
-```
-
 ## Installation
 `wormenuroatlas` can be installed via pip 
 ```
