@@ -20,11 +20,7 @@ with the papers containing the datasets you use.
 __all__ = ["NeuroAtlas","WormBase","Cengen","PeptideGPCR","ExponentialConvolution_min"]
 
 from .NeuroAtlas import NeuroAtlas
-try:
-    from .WormBase import WormBase
-except:
-    print("WormBase not available. Likely because libcurl is missing (see "+\
-          "error below for details). To install libcurl, see the README)")
+from .WormBase import WormBase
 from .Cengen import Cengen
 from .PeptideGPCR import PeptideGPCR
 from .ExponentialConvolution_min import ExponentialConvolution_min

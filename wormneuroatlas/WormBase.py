@@ -1,5 +1,4 @@
-import pycurl, certifi, json, numpy as np
-from io import BytesIO
+import json, numpy as np, urllib3
 import wormneuroatlas as wa
 
 class WormBase:
@@ -111,37 +110,30 @@ class WormBase:
         return int(gene_wbid[6:])
     
     @staticmethod
-    def curl_req(url):
-        '''General cURL request to Wormbase. Look up the URLs to fetch specific
-        data here: http://rest.wormbase.org/index.html .
+    def http_req(url,parse=True):
+        '''Performs an HTTP request.
         
         Parameters
         ----------
         url: str
-            URL of the request.
+            URL for the request.
+        parse: bool (optional)
+            Whether to parse the result as JSON. Default: True.
         
         Returns
         -------
-        result: dictionary
-            JSON-parsed result of the cURL request.
-        
+        result:
+            Either a dictionary (if the request returns JSON and parse is True)
+            or the raw result of the request.
         '''
-        # Creating a buffer as the cURL is not allocating a buffer for the network response
-        buffer = BytesIO()
-        c = pycurl.Curl()
-        #initializing the request URL
-        c.setopt(c.URL, url)
-        #setting options for cURL transfer  
-        c.setopt(c.WRITEDATA, buffer)
-        #setting the file name holding the certificates
-        c.setopt(c.CAINFO, certifi.where())
-        # perform file transfer
-        c.perform()
-        #Ending the session and freeing the resources
-        c.close()
+        
+        http = urllib3.PoolManager()
+        r = http.request('GET', url)
+        if parse:
+            result = json.loads(r.data)
+        else:
+            result = r.data
 
-        #retrieve the content BytesIO
-        result = json.loads(buffer.getvalue().decode('iso-8859-1'))
         return result
 
     @classmethod
@@ -161,7 +153,7 @@ class WormBase:
         
         url = "http://rest.wormbase.org/rest/field/gene_class/"+\
                gene_class+"/current_genes"
-        result = cls.curl_req(url)
+        result = cls.http_req(url)
         genes = result["current_genes"]["data"]["Caenorhabditis elegans"]
         
         return genes 
@@ -189,7 +181,7 @@ class WormBase:
         
         url = "http://rest.wormbase.org/rest/widget/gene/"+\
                gene_wbid+"/sequences"
-        result = cls.curl_req(url)
+        result = cls.http_req(url)
         if result["fields"]["name"]["data"]["taxonomy"] != "c_elegans":
             return None
         result = result["fields"]["gene_models"]["data"]["table"]
@@ -201,3 +193,25 @@ class WormBase:
                     t_ids.append(t_id)
                         
         return t_ids
+    
+    @classmethod
+    def get_sequences_from_transcript_id(cls, transcript_wbid):
+        url = "http://rest.wormbase.org/rest/widget/transcript/"+\
+               transcript_wbid+"/sequences"
+        r = cls.http_req(url)
+        
+        return r
+        
+    @classmethod
+    def get_unspliced_sequence_from_transcript_id(cls, transcript_wbid):
+        r = cls.get_sequences_from_transcript_id(transcript_wbid)["fields"]
+        
+        if r["strand"]["data"]=="-": strand = "negative_strand"
+        else: strand = "positive_strand"
+        
+        r = r["unspliced_sequence_context_with_padding"]["data"]
+        sequence = r[strand]["sequence"]
+        features = r[strand]["features"]
+        
+        return {"sequence": sequence.lower(), "features": features}
+        
