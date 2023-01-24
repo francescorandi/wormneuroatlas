@@ -57,8 +57,8 @@ The WormBase class uses the REST API provided by wormbase.org. WormBase currentl
 
 ## Examples
 * plot_signal_propagation.py shows you how to access the signal propagation data,
-* get_gene_expression.py shows you how to get gene expression data from CeNGEN,
-* test_deorphanization.py shows you how to get the peptides binding to given GPCRs and vice versa,
+* gene_expression.py shows you how to get gene expression data from CeNGEN,
+* peptideGPCR_binding.py shows you how to get the peptides binding to given GPCRs and vice versa,
 * make_peptidergic_connectome.py shows you how to combine these functions to compile the neuropeptidergic connectome [8] using gene expression and neuropeptide/GPCR deorphanization.
 
 ## References
