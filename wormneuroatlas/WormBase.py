@@ -1,13 +1,17 @@
 import json, numpy as np, urllib3
 import wormneuroatlas as wa
+import warnings
 
 class WormBase:
     
+    db_version = "WS287"
     gene_wbids_fname = "c_elegans.PRJNA13758.WS286.geneIDs.txt"
     module_folder = ""
     '''Folder of the wormneuroatlas module'''
     
     def __init__(self, gene_subset = None):
+        self.assert_db_version_consistency()
+        
         if "\\" in wa.__file__:
             self.folder_sep = char = "\\"
         else:
@@ -26,6 +30,49 @@ class WormBase:
                         gene = self.wbid_to_wbint(gene_subset[i])
                     else:
                         gene = self.name_to_gene_wbid(gene_subset[i],alt=True)
+                        
+    def assert_db_version_consistency(self):
+        db_v_http = self.get_db_version_http()
+        if db_v_http != self.db_version:
+            w = "Wormbase.org updated its database to a new version ("+\
+                db_v_http+"). The version of Worm Neuro Atlas that you are "+\
+                "using has been built for the wormbase database version "+\
+                self.db_version+". To ensure reproducible results, upgrade "+\
+                "Worm Neuro Atlas with "+\
+                "`python -m pip install --upgrade wormneuroatlas` "+\
+                "If this warning persists after upgrading, let the developers"+\
+                " know by opening an issue here: "+\
+                "https://github.com/francescorandi/wormneuroatlas/issues. "+\
+                "NOTE: You can still use Worm Neuro Atlas in the meantime. "+\
+                "The metadata accessible via  "+\
+                "wormneuroatlas.WormBase.get_metadata() and "+\
+                "wormneuroatlas.NeuroAtlas.get_metadata() contain the "+\
+                "version of wormbase that you are currently using, so make "+\
+                "sure you save the metadata alongside your results. "
+            warnings.warn(w)
+            self.version_consistency_check = False
+        else:
+            self.version_consistency_check = True
+            
+    def get_metadata(self):
+        d = {"db_version_intended": self.db_version,
+             "db_version_available": self.get_db_version_http(),
+             "version_consistency_check": self.version_consistency_check,
+             "list_of_genes": self.gene_wbids_fname,
+             "list_of_genes_description": 
+                    "list_of_genes is the file containing the list of genes"+\
+                    "and their Wormbase IDs. This local copy of the list "+\
+                    "of genes is only used by WormBase.name_to_gene_wbid(), "+\
+                    "so, even if the version of this file does not match the "+\
+                    "version of the database, your results are not affected "+\
+                    "unless you are using that function. If you are using "+\
+                    "that function, the results are very likely not affected "+\
+                    "but you can let the developers know by opening an issue "+\
+                    "here: "+\
+                    "https://github.com/francescorandi/wormneuroatlas/issues"
+             }
+             
+        return d
                 
     def load_gene_wbids(self):
         '''Load gene IDs, names, other codes, and types from file. See 
@@ -108,34 +155,14 @@ class WormBase:
     @staticmethod
     def wbid_to_wbint(gene_wbid):
         return int(gene_wbid[6:])
+        
+    @classmethod
+    def get_db_version_http(cls):
+        url = "http://rest.wormbase.org/rest/database/version"
+        r = cls.http_req(url)
+
+        return r["data"]
     
-    @staticmethod
-    def http_req(url,parse=True):
-        '''Performs an HTTP request.
-        
-        Parameters
-        ----------
-        url: str
-            URL for the request.
-        parse: bool (optional)
-            Whether to parse the result as JSON. Default: True.
-        
-        Returns
-        -------
-        result:
-            Either a dictionary (if the request returns JSON and parse is True)
-            or the raw result of the request.
-        '''
-        
-        http = urllib3.PoolManager()
-        r = http.request('GET', url)
-        if parse:
-            result = json.loads(r.data)
-        else:
-            result = r.data
-
-        return result
-
     @classmethod
     def get_genes_in_class(cls,gene_class):
         '''Get genes (e.g. rab-1, rab-2, ...) in gene class (e.g. rab)
@@ -215,3 +242,29 @@ class WormBase:
         
         return {"sequence": sequence.lower(), "features": features}
         
+    @staticmethod
+    def http_req(url,parse=True):
+        '''Performs an HTTP request.
+        
+        Parameters
+        ----------
+        url: str
+            URL for the request.
+        parse: bool (optional)
+            Whether to parse the result as JSON. Default: True.
+        
+        Returns
+        -------
+        result:
+            Either a dictionary (if the request returns JSON and parse is True)
+            or the raw result of the request.
+        '''
+        
+        http = urllib3.PoolManager()
+        r = http.request('GET', url)
+        if parse:
+            result = json.loads(r.data)
+        else:
+            result = r.data
+
+        return result

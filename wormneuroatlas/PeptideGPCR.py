@@ -7,6 +7,8 @@ class PeptideGPCR:
     bentley_fname = "esconnectome_neuropeptides_Bentley_2016.csv"
     froonikcx_fname = "froonikcx_peptide_gpcr.txt"
     cached_seq_id_fname = "cached_seq_ids.txt"
+    version = "10.1101/2022.10.30.514428"
+    description = "Beets et al. 2022, media_6.csv"
     
     def __init__(self):
         if "\\" in wa.__file__:
@@ -30,6 +32,16 @@ class PeptideGPCR:
                         self.module_folder+self.cached_seq_id_fname,
                         dtype=str))
         
+        self.supplemented = False
+        
+    def get_metadata(self):
+        d = {"version": self.version,
+             "description": self.description,
+             "supplemented_with_older_data": self.supplemented,
+             }
+             
+        return d
+        
     def supplement(self,bentley=True,froonikcx=True,verbose=False):
         '''Supplement the peptide/GPCR combinations using additional works
         from the literature. Not done by default, because the main source 
@@ -48,6 +60,8 @@ class PeptideGPCR:
             Whether to print out what combinations of peptides and GPCR are
             added from these supplemental datasets. Default: False.
         '''
+        
+        self.supplemented = True
         
         if bentley or froonikcx:
             comb_a_ = []

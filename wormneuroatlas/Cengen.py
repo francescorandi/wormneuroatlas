@@ -1,11 +1,14 @@
 import numpy as np, h5py,matplotlib.pyplot as plt
 import wormneuroatlas as wa
+import os, warnings
 
 class Cengen:
     
     module_folder = ""
     '''Folder of the wormneuroatlas module'''
     cengen_fname = "cengen.h5"
+    version = "021821"
+    description = "Taylor et al. 2021"
     
     def __init__(self,wormbase=None):
         if "\\" in wa.__file__:
@@ -14,6 +17,8 @@ class Cengen:
             self.folder_sep = char = "/"
         self.module_folder = char.join(wa.__file__.split(char)[:-1])+char+\
                              "data"+char
+         
+        self.assert_version_consistency()
         
         self.h5 = h5py.File(self.module_folder+self.cengen_fname,"r")
         # Directly load neuron from file. These are the same for each 
@@ -47,6 +52,44 @@ class Cengen:
         # Store the instance of wormbase. Only necessary for specific things,
         # like looking up gene_wbids from gene_names.
         self.wormbase = wormbase
+        
+    def assert_version_consistency(self):
+        files = ["cengen_021821_conservative_threshold3.csv",
+                 "cengen_021821_liberal_threshold1.csv",
+                 "cengen_021821_medium_threshold2.csv",
+                 "cengen_021821_stringent_threshold4.csv",
+                ]
+        
+        ok = True
+        for f in files:
+            # Check 1: file exists
+            if not os.path.isfile(self.module_folder+f): ok = False
+            # Check 2: file name compatible with self.version
+            if f.split("_")[1] != self.version: ok = False
+        
+        if not ok:
+            w = "There is an inconsistency with the version of Cengen for "+\
+                "which Worm Neuro Atlas was built and the files that are "+\
+                "present. To ensure reproducible results, upgrade "+\
+                "Worm Neuro Atlas with "+\
+                "`python -m pip install --upgrade wormneuroatlas` "+\
+                "If this warning persists after upgrading, let the developers"+\
+                " know by opening an issue here: "+\
+                "https://github.com/francescorandi/wormneuroatlas/issues. "+\
+                "NOTE: You can still use Worm Neuro Atlas in the meantime, "+\
+                "but wait until the issue is solved before you draw "+\
+                "conclusions from your results."
+            warnings.warn(w)
+        
+        self.version_consistency_check = ok
+        
+    def get_metadata(self):
+        d = {"version_intended": self.version,
+             "description": self.description,
+             "version_consistency_check": self.version_consistency_check,
+             }
+        
+        return d
         
     def get_neuron_ids(self):
         return self.neuron_ids

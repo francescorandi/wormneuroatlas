@@ -29,6 +29,15 @@ class NeuroAtlas:
                      "fname": "aconnectome_witvliet_2020_8.csv"}
                      ]
                      
+    fname_default_aconn = "aconnectome_default.h5"
+    '''File with the anatomical connectome compiled with the default params.'''
+                     
+    default_aconn_parameters = {"chem_th": 0,
+                                "gap_th": 0,
+                                "exclude_white": False,
+                                "average": False,
+                                }
+                     
     esconn_sources = [{"type": "bentley", 
                        "fname": "esconnectome_monoamines_Bentley_2016.csv", 
                        "transmitter_type": "monoamines"},
@@ -145,7 +154,19 @@ class NeuroAtlas:
                                 self.merge_AWC)
                 if self.neuron_ids[ai] in app_c_ids_to_atlas:
                     self.cengen_is[ai] = ci
-    
+                    
+    def get_metadata(self):
+        d = {}
+        
+        d["wormbase"] = self.wormbase.get_metadata()
+        d["cengen"] = self.cengen.get_metadata()
+        d["peptidegpcr"] = self.pepgpcr.get_metadata()
+        
+        d["signal_propagation"] = self.get_metadata_sigprop()
+        d["anatomical_connectome"] = self.get_metadata_aconn()
+        d["monoaminergic_connectome"] = self.get_metadata_maesconn()
+        
+        return d
     
     def approximate_ids(self,ids,merge_bilateral=True,merge_dorsoventral=True,
                  merge_numbered=True,merge_AWC=False):
@@ -723,6 +744,15 @@ class NeuroAtlas:
                "g,factor,power_t,branch":
             print("There is a problem with the ordering of the kernel keys.")
             print("DO NOT USE THE KERNELS BEFORE SOLVING THE PROBLEM.")
+            
+        self.sigprop_v = self.funatlas_h5.attrs["time_compiled"].decode("utf-8")
+        
+    def get_metadata_sigprop(self):
+        d = {"version": self.sigprop_v,
+             "description": "Randi et al. 2022",
+            }
+        
+        return d
     
     def get_signal_propagation_map(self,strain="wt"):
         return self.dFF[strain]
@@ -780,6 +810,22 @@ class NeuroAtlas:
     #######################
     #######################
     #######################
+    
+    def get_metadata_aconn(self):
+        d = {"version": "10.1038/s41586-021-03778-8",
+             "description": "Witvliet et al. 2021",
+             "default_parameters": self.default_aconn_parameters,
+             "default_parameters_descr": "The default parameters are the "+\
+                                         "ones used to build the anatomical "+\
+                                         "connectome in the hdf5 file. If "+\
+                                         "you want to use different "+\
+                                         "parameters, rerun "+\
+                                         "NeuroAtlas"+\
+                                         ".load_aconnectome_from_file() "+\
+                                         "in your scripts."
+             }
+        
+        return d
         
     def load_aconnectome_from_file(self,chem_th=0,gap_th=0,exclude_white=False,
                                    average=False):
@@ -815,15 +861,32 @@ class NeuroAtlas:
             gap[i,j] is the count of gap junctions from j to i, averaged
             across the sources.
         '''
-        chem = np.zeros((self.n_neurons, self.n_neurons))
-        gap = np.zeros((self.n_neurons, self.n_neurons))
-        
         # Reminder of the convention for AWCON and AWCOFF, since the anatomical
         # data has AWCL and AWCR.
         if not self.merge_AWC and not self.merge_bilateral and self.verbose:
             print("In loading the anatomical connectome, the following "+\
                   "conventions are used to allow for its comparison with the "+\
                   "other datasets: AWCL->AWCOFF and AWCR->AWCON")
+        
+        # Determine if can use the hdf5 version of the connectome, which uses
+        # the default parameters.
+        default = True        
+        kwargs= {"chem_th": chem_th, "gap_th": gap_th, 
+                 "exclude_white": exclude_white, "average": average}
+        for k in kwargs.keys():
+            if kwargs[k] != self.default_aconn_parameters[k]: default = False
+        if default:
+            self.aconn_h5 = h5py.File(
+                        self.module_folder+self.fname_default_aconn,"r")
+            chem = self.aconn_h5["chem"][:]
+            gap = self.aconn_h5["gap"][:]
+            
+            return chem, gap
+        
+        # If you cannot use the hdf5 version of the connectome because you
+        # want to use different parameters, load from scratch.
+        chem = np.zeros((self.n_neurons, self.n_neurons))
+        gap = np.zeros((self.n_neurons, self.n_neurons))
         
         sources_used = 0
         for source in self.aconn_sources:
@@ -1709,6 +1772,13 @@ class NeuroAtlas:
     ##############################################
     ##############################################
     ##############################################
+    
+    def get_metadata_maesconn(self):
+        d = {"version": "10.1371/journal.pcbi.1005283",
+             "description": "Bentley et al. 2016",
+             }
+        
+        return d
     
     def load_extrasynaptic_connectome_from_file(self, *args, **kwargs):
          esconn_ma, esconn_np = self.get_extrasynaptic_connectome_from_file(
