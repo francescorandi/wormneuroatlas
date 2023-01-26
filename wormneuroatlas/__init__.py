@@ -23,4 +23,5 @@ from .NeuroAtlas import NeuroAtlas
 from .WormBase import WormBase
 from .Cengen import Cengen
 from .PeptideGPCR import PeptideGPCR
+from .SynapseSign import SynapseSign
 from .ExponentialConvolution_min import ExponentialConvolution_min

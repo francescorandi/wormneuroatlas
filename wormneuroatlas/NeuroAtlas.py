@@ -54,11 +54,11 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        merge_bilateral: bool (optional)
+        merge_bilateral: bool, optional
             Whether to merge bilateral pairs. Default: False.
-        merge_dorsoventral: bool (optional)
+        merge_dorsoventral: bool, optional
             Whether to merge dorsoventral pairs. Default: False.
-        merge_numbered: bool (optional)
+        merge_numbered: bool, optional
             Whether to merge numbered neuron sets. Default: False.
         '''         
         
@@ -122,14 +122,10 @@ class NeuroAtlas:
             self.esconn_loaded = False
         self.load_signal_propagation_atlas()
         
-        try:
-            self.wormbase = wa.WormBase()
-        except:
-            # WormBase could not be loaded, likely because libcurl is missing.
-            # Not printing anything here because the __init__.py does already.
-            pass
+        self.wormbase = wa.WormBase()
         self.cengen = wa.Cengen()
         self.pepgpcr = wa.PeptideGPCR()
+        self.synapsesign = wa.SynapseSign()
         
         ###########################################################
         # Manage conversions between different styles of neuron IDs
@@ -179,12 +175,12 @@ class NeuroAtlas:
         ----------
         ids: str or array_like of str
             IDs to be approximated.
-        merge_bilateral: bool (optional)
+        merge_bilateral: bool, optional
             Whether to merge left/right pairs. Default: True.
-        merge_dorsoventral: bool (optional)
+        merge_dorsoventral: bool, optional
             Whether to merge dorsal/ventral pairs, triplets, and quadruples. 
             Default: True.
-        merge_numbered: bool (optional)
+        merge_numbered: bool, optional
             Whether to merge the undistinguishable merged neurons in the 
             retrovesicular ganglion and ventral nerve cord. Note that VB1, VA1, 
             VA11 will not be merged because they are different from the other 
@@ -840,14 +836,14 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        chem_th: int (optional)
+        chem_th: int, optional
             Threshold on the counts of chemical synapses. Default: 0.
-        gap_th: int (optional)
+        gap_th: int, optional
             Threshold on the counts of electrical synapses. Default: 0.
-        exclude_white: bool (optional)
+        exclude_white: bool, optional
             Whether to exclude the older connectome from White et al. 1986.
             Default: False.
-        average: bool (optional)
+        average: bool, optional
             Determines how the different connectomes are combined. If True,
             the average of the connectomes is taken, otherwise they are summed.
         
@@ -1023,7 +1019,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        s: float (optional)
+        s: float, optional
             Gain, or modulation of the strength of the connections. Default: 1.
         
         Returns
@@ -1054,7 +1050,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        max_hops: int (optional)
+        max_hops: int, optional
             Maximum number of hops to allow for the effective connectivity. If
             None, the effective connectivity is returned at convergence. The
             boolean single-hop anatomical connectome is returned with max_hops
@@ -1093,13 +1089,13 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        max_hops: int (optional)
+        max_hops: int, optional
             Maximum number of hops to allow for the effective connectivity. If
             None, the effective connectivity is returned at convergence. The
             boolean single-hop anatomical connectome is returned with max_hops
             equal to 1. Default: None.
             
-        gain_1: str or int (optional)
+        gain_1: str or int, optional
             Where to set the gain equal to 1 in terms of number of contacts.
             If it is set to 'average', the median number of contacts corresponds
             to gain=1. Default: average.
@@ -1293,12 +1289,12 @@ class NeuroAtlas:
             Atlas-index or ID of the downstream neuron.
         j: int or str
             Atlas-index or ID of the upstream neuron.
-        max_n_hops: int (optional)
+        max_n_hops: int, optional
             Maximum number of hops in which to perform the search. Default: 1.
-        return_ids: bool (optional)
+        return_ids: bool, optional
             Return also the paths with the IDs of the neurons, instead of their
             atlas-indices. Default: False.
-        exclude_self_loops: bool (optional)
+        exclude_self_loops: bool, optional
             Whether to exclude recurrent paths looping on the downstream
             neuron i.
             
@@ -1393,7 +1389,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        n: int (optional)
+        n: int, optional
             Number of upstream hops at which to search for common upstream 
             neurons. Default 1.
         
@@ -1417,7 +1413,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        shuffling_sorter: 1D numpy.ndarray (optional)
+        shuffling_sorter: 1D numpy.ndarray, optional
             Sorter that determines the suffling. Useful if the shuffler is 
             constructed somewhere else in the code. If None, a random shuffler 
             is generated. Default: None
@@ -1587,6 +1583,106 @@ class NeuroAtlas:
                     
             self.nptr_exp_levels = exp_levels
             self.nptr_genes = genes
+            
+    ###########################################################
+    ###########################################################
+    ###########################################################
+    # INTERFACE TO SYNAPSE SIGN FROM FENYVES ET AL. 2020
+    ###########################################################
+    ###########################################################
+    ###########################################################
+    
+    def get_chemical_synapse_sign(self, nt=None,
+                                  nt_kwargs={"mode":"both"},
+                                  gene_exp_kwargs={}):
+        '''Build the map of the predicted signs of *potential* chemical synapses
+        based on neurotransmitters and ionotropic receptors only. NOTE: This map
+        does not contain information about synapse-localized metabotropic 
+        receptors. NOTE: This map does not know about the connectome, so it
+        will return the sign of potential synapses. You have to multiply this
+        map by the connectome to actually restrict it to the chemical synapses 
+        that actually exists.
+        
+        Parameters
+        ----------
+        nt: str or array_like of str
+            Neurotransmitters to consider. If None, all available 
+            transmitters are used, as obtained via 
+            SynapseSign.get_neurotransmitters. Defaut: None.
+        nt_kwargs: dict, optional
+            Keywords arguments to be passed to 
+            SynapseSign.get_neurons_producing(). If {"mode":"both"}, the mapping
+            will consider both dominant and alternative neurotransmitters. Other
+            possible values are {"mode":"dominant"} and {"mode":"alternative"}.
+            Default: {"mode":"both"}.
+        gene_exp_kwargs: dict, optional
+            Keywords arguments to be passed to Cengen.get_gene_expression().
+            Default: {}.
+            
+        Returns
+        -------
+        sign: numpy.ndarray 
+            Sign prediction for *potential* chemical synapses. If nt was a list
+            of neurotransmitters, sign[k,i,j] is the predicted sign of the 
+            potential synapse from j to i based on neurotransmitter k. If nt was
+            a single neurotransmitter, then the indexing is only sign[i,j]. 
+            nans are elements for which there is no prediction. 0 are elements
+            for which there are conflicting predictions based on a single 
+            neurotrasmitter, because the downstream neuron expresses both
+            inhibitory and excitatory receptors. 
+            
+        Notes
+        -----
+        To know if the prediction is conflicting because different
+        neurotransmitters produced by the same upstream neuron lead to 
+        different predictions, compare the elements sign[:,i,j]. If both -1 and 
+        +1 are in sign[:,i,j], then there are conflicting predictions based on 
+        different neurotransmitters. This can be done by
+        
+        >>> np.logical_and( np.any(sign==-1,axis=0), np.any(sign==1,axis=0) )
+        '''
+
+        if nt is None:
+            nt = self.synapsesign.get_neurotransmitters()
+        if type(nt)==str:
+            nt = [nt]
+            was_scalar = True
+        else:
+            was_scalar = False
+        
+        sign = np.zeros((len(nt),self.n_neurons,self.n_neurons))*np.nan
+        neu_with_nt = np.empty(len(nt),dtype=object)
+        #neu_with_r_pos = np.empty(len(nt),dtype=object)
+        #neu_with_r_neg = np.empty(len(nt),dtype=object)
+        for i_nt in np.arange(len(nt)):
+            # Get neurons with neurotransmitter
+            nwn = self.synapsesign.get_neurons_producing(nt[i_nt],**nt_kwargs)
+            neu_with_nt[i_nt] = self.ids_to_ais(nwn)
+            
+            # Get neurons with corresponding + and - ionotropic receptors
+            r_pos = self.synapsesign.get_receptors_to(nt[i_nt],"pos")
+            r_neg = self.synapsesign.get_receptors_to(nt[i_nt],"neg")
+            gexp_pos = self.get_gene_expression(gene_names=r_pos,
+                                                **gene_exp_kwargs)
+            gexp_neg = self.get_gene_expression(gene_names=r_neg,
+                                                **gene_exp_kwargs)
+            neu_r_pos = np.where(np.sum(gexp_pos,axis=1)>0)[0]
+            neu_r_neg = np.where(np.sum(gexp_neg,axis=1)>0)[0]
+            neu_r_posneg = np.where(np.logical_and(
+                                      np.sum(gexp_pos,axis=1)>0,
+                                      np.sum(gexp_neg,axis=1)>0)
+                                      )[0]
+            
+            for j in neu_with_nt[i_nt]:
+                sign[i_nt][neu_r_pos,j] = 1.0
+                sign[i_nt][neu_r_neg,j] = -1.0
+                sign[i_nt][neu_r_posneg,j] = 0.0
+        
+        if was_scalar:
+            return sign[0]
+        else:
+            return sign
+            
     
     ###########################################################
     ###########################################################
@@ -1677,13 +1773,13 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        neuron_ids_from: array_like of str or None (optional)
+        neuron_ids_from: array_like of str or None, optional
             Array of the IDs of the upstream neuron from which neuropeptide are
             released. If None, all neurons are included. Default: None.
-        neuron_ids_to: array_like of str or None (optional)
+        neuron_ids_to: array_like of str or None, optional
             Array of the IDs of the downstream neuron to which the neuropeptide
             signal. If None, all neurons are includede. Default: None.
-        return_combo: bool (optional)
+        return_combo: bool, optional
             Whether to return also the list of peptide/GPCR combinations for
             each neuron pair. Default: False.
             
@@ -1793,7 +1889,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        transmitter_types: str or list of str (optional)
+        transmitter_types: str or list of str, optional
             Types of transmitters to allow (monoamines, neuropeptides, ...).
             If None, all are selected. Default: None.
         args, kwargs
@@ -1842,10 +1938,10 @@ class NeuroAtlas:
         ----------
         fname: str
             Name of the csv file.
-        transmitter: str or list of str (optional)
+        transmitter: str or list of str, optional
             Requested trasmitters. If None, no restriction is applied. 
             Default: None.
-        receptors: str or list of str (optional)
+        receptors: str or list of str, optional
             Requested receptors. If None, no restriction is applied. 
             Default: None.
         
@@ -1962,7 +2058,7 @@ class NeuroAtlas:
         absolute: bool (optioal)
             Whether to sparsify and threshold based on absolute values.
             Default: True.
-        max_i: int (optional)
+        max_i: int, optional
             Maximum number of iterations allowed in estimating the thresold.
             Default: 100.
         
@@ -2027,9 +2123,9 @@ class NeuroAtlas:
             Minimum and maximum alphas.
         nalphaticks: int
             Number of ticks on the alpha axis (x).
-        cmap: matplotlib-accepted colormap (optional)
+        cmap: matplotlib-accepted colormap, optional
             Colormap.
-        around: int (optional)
+        around: int, optional
             np.around -ing precision for ticks. Default: 0.
         '''
         
@@ -2088,33 +2184,33 @@ class NeuroAtlas:
             Matrix to be plotted.
         ids: array_like of str
             IDs to use as tick labels. They are used for both the x and y axes.
-        alphas: 2D numpy.ndarray (optional)
+        alphas: 2D numpy.ndarray, optional
             If not None, it is used to set the gray level of each entry in the
             matrix A. For example, it can represent the statistical confidence
             of the values in the matrix A. Default: None.
-        cmap: str (optional)
+        cmap: str, optional
             Colormap to use. Default: Spectral_r
-        black_diag: bool (optional)
+        black_diag: bool, optional
             Whether to black out diagonal entries. Default: True.
-        fig: matplotlib figure (optional)
+        fig: matplotlib figure, optional
             If not None, this figure will be used for plotting. Default: None.
-        figsize: array_like (2,) (optional)
+        figsize: array_like (2,), optional
             Figure size. Default: (20,20)
-        label: str (optional)
+        label: str, optional
             Label that will appear next to the colorbar. Default: "".
-        alphalabel: str (optional)
+        alphalabel: str, optional
             Label of the alpha/gray level. Default: "".
-        labelx: str (optional)
+        labelx: str, optional
             Label of the x axis. Default: "Stimulated".
-        labely: str (optional)
+        labely: str, optional
             Label of the y axis. Default: "Responding".
-        labelsize: int (optional)
+        labelsize: int, optional
             Label size. Default: 30.
-        ticklabelsize: int (optional)
+        ticklabelsize: int, optional
             Size of the tick labels. Default: 6.
-        alphamin: float (optional)
+        alphamin: float, optional
             Minimum value for the clipping of the alpha values. Default: 0.0.
-        alphamax: float (optional)
+        alphamax: float, optional
             Maximum value for the clipping of the alpha values. Default: 1.0.
             
         Returns

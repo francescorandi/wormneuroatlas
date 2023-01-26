@@ -20,7 +20,9 @@ dependencies = ["numpy",
                 "matplotlib",
                 "urllib3",
                 "h5py",
-                "pdoc"
+                "pdoc",
+                "pandas",
+                "openpyxl",
 ]
 
 [project.urls]
