@@ -6,8 +6,9 @@ class SynapseSign:
     fname = "journal.pcbi.1007974.s003.xlsx"
     module_folder = ""
     '''Folder of the wormneuroatlas module'''
-    version =  "https://doi.org/10.1371/journal.pcbi.1007974.s003"
-    description = "Fenyves et al. 2020, manually adapted from xlsl"
+    version =  "https://doi.org/10.1371/journal.pcbi.1007974.s003|"
+    description = "Container for predictions of synapse sign. "+\
+                  "Currently using results from Fenyves et al. 2020."
     
     def __init__(self):
         if "\\" in wa.__file__:
@@ -21,7 +22,7 @@ class SynapseSign:
         
     def get_metadata(self):
         d = {"version": self.fname,
-             "description": "Fenyves et al. 2020",
+             "description": self.description,
              }
         
         return d
@@ -33,6 +34,21 @@ class SynapseSign:
                           dtype=np.str_)
         
         self.neuron_ids = nt_xls.T[0]
+        # Neuron IDs like VA01 need to be modified into VA1 to be compatible
+        # with the NeuroAtlas. AWCR and AWCL need to be converted to the same
+        # convention as for the connectome. Don't print a message about this
+        # because these IDs only affect neurotransmitter production, and 
+        # both AWCs produce Glu, so it has no effect.
+        
+        for i in np.arange(len(self.neuron_ids)):
+            if self.neuron_ids[i][-2:].isnumeric():
+                if int(self.neuron_ids[i][-2:])<10:
+                    self.neuron_ids[i] = self.neuron_ids[i][:-2]+\
+                                         str(int(self.neuron_ids[i][-2:]))
+                                         
+            if self.neuron_ids[i] == "AWCL": self.neuron_ids[i] = "AWCOFF"
+            if self.neuron_ids[i] == "AWCR": self.neuron_ids[i] = "AWCON"
+        
         self.dominant_nt = nt_xls.T[1]
         self.alternative_nt = nt_xls.T[2]
         
@@ -86,17 +102,39 @@ class SynapseSign:
         
         return neu_ids
         
-    def get_receptors_to(self,nt,sign):
+    def get_receptors_for(self,nt,sign):
+        '''Returns the list of excitatory or inhibitory receptors for a given 
+        neurotransmitter.
+        
+        Parameters
+        ----------
+        nt: str
+            Neurotransmitter for which to look for receptors. Can be any of
+            SynapseSign.get_neurotransmitters().
+        sign: str or int
+            Whether to return excitatory or inhibitory receptors. pos, exc,
+            excitatory, and +1 all select excitatory receptors. neg, inh,
+            inhibitory, and -1 select inhibitory receptors.
+            
+        Returns
+        -------
+        receptors: numpy.ndarray of str
+            Gene names of the receptors. 
+        '''
         
         if nt not in self.get_neurotransmitters():
             raise ValueError("Invalid neurotransmitter. Only the following "+\
                              "neurotransmitters are available: "+\
                              self.get_neurotransmitters())
         
-        if sign=="pos": sign="+"
-        if sign=="neg": sign="-"
+        if sign in ["pos","exc","excitatory",+1]:
+            sign="+"
+        if sign in ["neg","inh","inhibitory",-1]: 
+            sign="-"
+            
+        receptors = self.receptors[nt][sign]
         
-        return self.receptors[nt][sign]
+        return receptors
         
     def get_neurotransmitters(self):
         return self.neurotransmitters
