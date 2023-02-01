@@ -62,7 +62,8 @@ class NeuroAtlas:
             Whether to merge numbered neuron sets. Default: False.
         '''         
         
-        print("DECIDE WHAT TO DO WITH CAN")
+        print("*This version of the NeuroAtlas does not include the CAN "+\
+              "neurons. This will be fixed soon.")
         
         if "\\" in wa.__file__:
             self.folder_sep = char = "\\"
@@ -82,7 +83,7 @@ class NeuroAtlas:
         self.merge_AWC = merge_AWC
         
         if merge_numbered and verbose:
-            print("Funatlas: Note that IL1 and IL2 will not be merged, as "+\
+            print("*NeuroAtlas: Note that IL1 and IL2 will not be merged, as "+\
                    "well as VB1, VA1, VA11 because "+\
                    "they are different from the other VB and VA.")
         self.verbose = verbose
@@ -173,6 +174,12 @@ class NeuroAtlas:
         d["monoaminergic_connectome"] = self.get_metadata_maesconn()
         
         return d
+    
+    def all_about(self, *args, **kwargs):
+        '''Alias for everything_about()
+        
+        '''
+        return self.everything_about(*args,**kwargs)
         
     def everything_about(self, neuron_ids, sigprop_kwargs={},
                   return_values=False, return_text=False, print_text=True):
@@ -510,7 +517,7 @@ class NeuroAtlas:
                 completeness[m] = True
         
         if not np.all(completeness):
-            print("The merger is incomplete. Returning the unmerged array.")
+            print("*The merger is incomplete. Returning the unmerged array.")
             return A
         
         if len(A.shape)==1:
@@ -808,7 +815,7 @@ class NeuroAtlas:
         
         for i in np.arange(len(self.neuron_ids)):
             if neuron_ids[i]!=self.neuron_ids[i] and neuron_ids[i]!="AWCOF":
-                print("In NeuroAtlas signal propagation",
+                print("*In NeuroAtlas signal propagation",
                       "Something wrong with neuron id",
                       neuron_ids[i],self.neuron_ids[i])
         
@@ -842,7 +849,7 @@ class NeuroAtlas:
         self.q_eq["unc31"] = self.merge(self.q_eq["unc31"])
         if self.merge_bilateral or self.merge_dorsoventral or \
            self.merge_numbered or self.merge_AWC:
-            print("IMPORTANT NOTE: Because of the neuron merging, q values",
+            print("*IMPORTANT NOTE: Because of the neuron merging, q values",
                   "have been merged and AVERAGED. This is not mathematically",
                   "accurate from the statistical point of view. Do not use",
                   "q values like this. New implementation soon.")
@@ -858,7 +865,7 @@ class NeuroAtlas:
         # definition used here
         if not self.funatlas_h5.attrs["kernels_keys"].decode("utf-8") == \
                "g,factor,power_t,branch":
-            print("There is a problem with the ordering of the kernel keys.")
+            print("*There is a problem with the ordering of the kernel keys.")
             print("DO NOT USE THE KERNELS BEFORE SOLVING THE PROBLEM.")
             
         self.sigprop_v = self.funatlas_h5.attrs["time_compiled"].decode("utf-8")
@@ -980,7 +987,7 @@ class NeuroAtlas:
         # Reminder of the convention for AWCON and AWCOFF, since the anatomical
         # data has AWCL and AWCR.
         if not self.merge_AWC and not self.merge_bilateral and self.verbose:
-            print("In loading the anatomical connectome, the following "+\
+            print("*In loading the anatomical connectome, the following "+\
                   "conventions are used to allow for its comparison with the "+\
                   "other datasets: AWCL->AWCOFF and AWCR->AWCON")
         
@@ -1118,8 +1125,59 @@ class NeuroAtlas:
                 
         return chem, gap
         
-    def get_anatomical_connectome(self):
-        return self.aconn_chem + self.aconn_gap
+    def get_anatomical_connectome(self, signed=False):
+        '''Returns the (signed) anatomical connectome. Signs come from data in
+        wormneuroatlas.SynapseSign.
+        
+        Parameters
+        ----------
+        signed: bool, optional
+            Whether to apply signs to the connectome. Default: False.
+        
+        Returns
+        -------
+        aconn: 2D numpy.ndarray
+            Anatomical connectome.
+            
+        Notes
+        -----
+        The signed anatomical connectome is an approximation. A minus sign is 
+        applied to the connections for which the downstream neuron has 
+        inhibitory ionotropic receptors when considering the neurotransmitters 
+        included in SynapseSign. No minus sign is applied if there are 
+        both inhibitory and excitatory ionotropic receptors. This function 
+        currently does  not know about metabotropic receptors, or about  
+        monodirectional electrical synapses.
+        
+        '''
+        if not signed:            
+            aconn = self.aconn_chem + self.aconn_gap
+        else:
+            chem_sign = self.get_chemical_synapse_sign()
+            cmplx=np.logical_and(np.any(chem_sign==-1,axis=0),
+                                 np.any(chem_sign==1,axis=0))
+            chem_sign = np.nansum(chem_sign,axis=0)
+            chem_sign[cmplx] = 0
+            aconn_chem = np.copy(self.aconn_chem)
+            aconn_chem[chem_sign==-1] *= -1
+            aconn = aconn_chem + self.aconn_gap
+            
+            nt = self.synapsesign.get_neurotransmitters()
+            nt = ", ".join(nt)
+            
+            w = "*get_anatomical_connectome(signed=True): The signed "+\
+                "anatomical connectome is an approximation. A minus sign is "+\
+                "applied to the connections for which the downstream neuron "+\
+                "has inhibitory ionotropic receptors, when considering the "+\
+                "following neurotransmitters: "+nt+". No minus sign is "+\
+                "applied if there are both inhibitory and excitatory "+\
+                "ionotropic receptors. This function currently does not know "+\
+                "about metabotropic receptors, or about monodirectional "+\
+                "electrical synapses."
+            
+            print(w)
+        
+        return aconn
     
     def get_aconn(self,*args,**kwargs):
         return self.get_anatomical_connectome(*args,**kwargs)
@@ -1248,7 +1306,7 @@ class NeuroAtlas:
                              np.sum(np.delete(old_c[i,:]*old_c[:,j],(i,j)))
             #c *= orig_max/np.max(c)
             if np.all(c==old_c): 
-                print("Aconnectome converged in",p); break
+                print("*Aconnectome converged in",p); break
             p +=1
             
         return c
@@ -1550,7 +1608,7 @@ class NeuroAtlas:
         still useful. 
         '''
         if not self.merge_bilateral:
-            print("inx expression level available only with merge_bilateral")
+            print("*inx expression level available only with merge_bilateral")
             return None
         else:
             f = open(self.module_folder+self.fname_innexins,"r")
@@ -1637,7 +1695,7 @@ class NeuroAtlas:
     def load_neuropeptide_expression_from_file(self):
         '''Legacy.'''
         if not self.merge_bilateral:
-            print("neuropeptide expression level available only with",
+            print("*neuropeptide expression level available only with",
                   "merge_bilateral.")
             return None
         else:
@@ -1672,7 +1730,7 @@ class NeuroAtlas:
     def load_neuropeptide_receptor_expression_from_file(self):
         '''Legacy.'''
         if not self.merge_bilateral:
-            print("neuropeptide receptor expression level available only with",
+            print("*neuropeptide receptor expression level available only with",
                   "merge_bilateral")
             return None
         else:
@@ -1780,7 +1838,7 @@ class NeuroAtlas:
             neu_with_nt[i_nt] = self.ids_to_ais(nwn)
             if np.any(neu_with_nt[i_nt]==-1):
                 del_neu = nwn[neu_with_nt[i_nt]==-1]
-                print("Dropping these neurons from SynapseSign.")
+                print("*Dropping these neurons from SynapseSign.")
                 neu_with_nt[i_nt] = np.delete(neu_with_nt[i_nt],
                                               neu_with_nt[i_nt]==-1)
             
@@ -1869,7 +1927,7 @@ class NeuroAtlas:
         
     def supplement_peptide_gpcr(self):
         self.pepgpcr.supplement()
-        print("Supplementing peptide/GPCR combinations with older datasets.")
+        print("*Supplementing peptide/GPCR combinations with older datasets.")
         
         return None
         
@@ -2126,7 +2184,6 @@ class NeuroAtlas:
     
     
     def get_esconn(self):
-        print("get_esconn changed ^ to +")
         return self.esconn_ma+self.esconn_np
         
     def get_monoaminergic_connectome(self):
@@ -2419,7 +2476,7 @@ class NeuroAtlas:
             return fig,ax,cax
         else:
             return fig,ax
-    
+            
     
     def everything_about_to_text(self, d, sigprop_q_th=0.05, sigprop_dff_th=0.1):
         '''Do a pretty print of the single-neuron results of 
@@ -2545,7 +2602,7 @@ class NeuroAtlas:
         return s
         
     @staticmethod
-    def str_array_to_str(A, str0="", str1="", sep=" ", linewidth=75, 
+    def str_array_to_str(A, str0="", str1="", sep=" ", linewidth=50, 
                          newline="\n"):
         '''Custom pretty printing of a list of strings.
         

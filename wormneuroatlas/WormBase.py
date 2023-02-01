@@ -111,7 +111,7 @@ class WormBase:
         try: self.alt_name_gene_wbid_warning
         except: 
             self.alt_name_gene_wbid_warning = True
-            print("WormAtlas alt_name_to_gene_wbid() to be implemented. None.")
+            print("*WormAtlas alt_name_to_gene_wbid() to be implemented. None.")
         g_wbid = None
         
         return g_wbid

@@ -80,7 +80,7 @@ class PeptideGPCR:
             # use the array as comb_b_ with 
             # trim_isoforms(self.peptide_names) -> self.gpcr_names, 
             # and then check if comb_b_[i] in comb_a_
-            if verbose: print("ADDED THROUGH BENTLEY")
+            if verbose: print("*ADDED THROUGH BENTLEY")
             for cb_ in comb_b_:
                 cb_ = cb_.upper()
                 if cb_ not in comb_a_:
@@ -102,7 +102,7 @@ class PeptideGPCR:
                         for d in data]
             comb_b_ = np.unique(comb_b_,)
             
-            if verbose: print("ADDED THROUGH FROONIKCX")
+            if verbose: print("*ADDED THROUGH FROONIKCX")
             for i in np.arange(len(comb_b_)):
                 cb_ = comb_b_[i]
                 cb_ = cb_.upper()
@@ -321,7 +321,7 @@ class PeptideGPCR:
                     if len(match)>0:
                         seq_id = self.cached_seq_ids[match[0],1]
                     else:
-                        print("Need cached seq id for",name)
+                        print("*Need cached seq id for",name)
                         seq_id = name
             
             seq_ids.append(seq_id)
@@ -367,7 +367,7 @@ class PeptideGPCR:
                     if len(match)>0:
                         name = self.cached_seq_ids[match[0],0]
                     else:
-                        print("Need cached seq id for",seq_id)
+                        print("*Need cached seq id for",seq_id)
                         name = ""
             
             if seq_id_trimmed:
