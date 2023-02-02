@@ -54,13 +54,16 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        merge_bilateral: bool (optional)
+        merge_bilateral: bool, optional
             Whether to merge bilateral pairs. Default: False.
-        merge_dorsoventral: bool (optional)
+        merge_dorsoventral: bool, optional
             Whether to merge dorsoventral pairs. Default: False.
-        merge_numbered: bool (optional)
+        merge_numbered: bool, optional
             Whether to merge numbered neuron sets. Default: False.
         '''         
+        
+        print("*This version of the NeuroAtlas does not include the CAN "+\
+              "neurons. This will be fixed soon.")
         
         if "\\" in wa.__file__:
             self.folder_sep = char = "\\"
@@ -80,7 +83,7 @@ class NeuroAtlas:
         self.merge_AWC = merge_AWC
         
         if merge_numbered and verbose:
-            print("Funatlas: Note that IL1 and IL2 will not be merged, as "+\
+            print("*NeuroAtlas: Note that IL1 and IL2 will not be merged, as "+\
                    "well as VB1, VA1, VA11 because "+\
                    "they are different from the other VB and VA.")
         self.verbose = verbose
@@ -122,14 +125,18 @@ class NeuroAtlas:
             self.esconn_loaded = False
         self.load_signal_propagation_atlas()
         
-        try:
-            self.wormbase = wa.WormBase()
-        except:
-            # WormBase could not be loaded, likely because libcurl is missing.
-            # Not printing anything here because the __init__.py does already.
-            pass
+        self.wormbase = wa.WormBase()
         self.cengen = wa.Cengen()
         self.pepgpcr = wa.PeptideGPCR()
+        self.synapsesign = wa.SynapseSign()
+        # Check that all the neuron IDs in SynapseSign are compatible with 
+        # NeuroAtlas.
+        '''if np.any(self.ids_to_ais(self.synapsesign.neuron_ids)==-1):
+            print(self.synapsesign.neuron_ids[self.ids_to_ais(self.synapsesign.neuron_ids)==-1])
+            raise AssertionError("The neuron IDs of SynapseSign are not "+\
+                                 "compatible with NeuroAtlas anymore.")
+        else:
+            print("OK")'''
         
         ###########################################################
         # Manage conversions between different styles of neuron IDs
@@ -168,6 +175,122 @@ class NeuroAtlas:
         
         return d
     
+    def all_about(self, *args, **kwargs):
+        '''Alias for everything_about()
+        
+        '''
+        return self.everything_about(*args,**kwargs)
+        
+    def everything_about(self, neuron_ids, sigprop_kwargs={},
+                  return_values=False, return_text=False, print_text=True):
+        '''Returns "all" available information regarding a specific neuron:
+        - signal propagation in and out of the neuron
+        - in and out anatomical connections
+        - putative neuropeptidergic connections
+        - putative monoaminergic connections in and out of the neuron
+        - gene expression of the neuron
+        
+        Parameters
+        ----------
+        neuron_ids: str or array_like of str
+            Neuron IDs.
+        sigprop_kwargs: dict, optional
+            Keywords arguments to be passed to 
+            NeuroAtlas.get_signal_propagation_map() (e.g. strain="unc31").
+            Default: {}.
+        
+        Returns
+        -------
+        ds: dict or numpy.ndarray of dict
+            If neuron_ids is a single ID, then ds is a dictionary. If 
+            neuron_ids was a list of IDs, then ds is an array of dictionaries.
+            ds[i] contains the pooled information about neuron neuron_ids[i].
+            The structure of ds[i] includes
+            {"neuron_id": ,
+             "signal_propagation": {"out": ,"in": },
+             "anatomical_connectome": {"out": ,"in": },
+             "peptidergic_connectome": {"out": ,"in": },
+             "monoaminergic_connectome": {"out": ,"in": },
+             "gene_expression": {"gene_names": ,"gene_expression": },}
+        '''
+        
+        if type(neuron_ids)==str:
+            neuron_ids = [neuron_ids]
+            was_scalar = True
+        else:
+            was_scalar = False
+            
+        ais = self.ids_to_ais(neuron_ids)
+        if np.any(ais==-1):
+            raise ValueError("Invalid neural IDs: "+str(neuron_ids[ais==-1]))
+        
+        sigprop = np.copy(self.get_signal_propagation_map(**sigprop_kwargs))
+        diag = np.diag_indices(sigprop.shape[0])
+        sigprop[diag] = 0.0
+        sigprop_out = sigprop[:,ais]
+        sigprop_in = sigprop[ais,:]
+        sigprop_q = self.get_signal_propagation_q(**sigprop_kwargs)
+        sigprop_q_out = sigprop_q[:,ais]
+        sigprop_q_in = sigprop_q[ais,:]
+        
+        aconn = self.get_anatomical_connectome()
+        aconn_chem = self.get_chemical_synapses()
+        aconn_gap = self.get_electrical_synapses()
+        aconn_out = aconn[:,ais]
+        aconn_in = aconn[ais,:]
+        aconn_chem_out = aconn_chem[:,ais]
+        aconn_chem_in = aconn_chem[ais,:]
+        aconn_gap_out = aconn_gap[:,ais]
+        aconn_gap_in = aconn_gap[ais,:]
+        chem_sign = self.get_chemical_synapse_sign()
+        chem_sign_out = chem_sign[:,:,ais]
+        chem_sign_in = chem_sign[:,ais,:]
+        
+        pepesc_out = self.get_peptidergic_connectome(neuron_ids_from=neuron_ids)
+        pepesc_in = self.get_peptidergic_connectome(neuron_ids_to=neuron_ids)
+        
+        maesconn = self.get_monoaminergic_connectome()
+        maesc_out = maesconn[:,ais]
+        maesc_in = maesconn[ais,:]
+        
+        gexp = self.get_gene_expression(neuron_ais=ais)
+        genes = self.cengen.get_gene_names()
+        
+        ds = np.empty(len(ais),dtype=object)
+        ss = np.empty(len(ais),dtype=object)
+        for i in np.arange(len(ais)):
+            ds[i] = {"neuron_id": neuron_ids[i],
+                     "signal_propagation": {"out": sigprop_out[:,i],
+                                            "in": sigprop_in[i],
+                                            "q_out": sigprop_q_out[:,i],
+                                            "q_in": sigprop_q_in[i]},
+                     "anatomical_connectome": {"out": aconn_out[:,i],
+                                               "in": aconn_in[i],
+                                               "chem_out": aconn_chem_out[:,i],
+                                               "chem_in": aconn_chem_in[i],
+                                               "gap_out": aconn_gap_out[:,i],
+                                               "gap_in": aconn_gap_in[i],},
+                     "peptidergic_connectome": {"out": pepesc_out[:,i],
+                                                "in": pepesc_in[i]},
+                     "monoaminergic_connectome": {"out": maesc_out[:,i],
+                                                  "in": maesc_in[i]},
+                     "gene_expression": {"gene_names": genes,
+                                         "gene_expression": gexp[i]},
+                     }
+            ss[i] = self.everything_about_to_text(ds[i])
+            if print_text:
+                print(ss[i])
+        
+        if was_scalar:
+            ds = ds[0]
+            ss = ss[0]
+        
+        if return_values:
+            if return_text:
+                return ds, ss
+            else:
+                return ds
+            
     def approximate_ids(self,ids,merge_bilateral=True,merge_dorsoventral=True,
                  merge_numbered=True,merge_AWC=False):
         '''Approximate the neural IDs, by orphaning them of the bilateral L/R
@@ -179,12 +302,12 @@ class NeuroAtlas:
         ----------
         ids: str or array_like of str
             IDs to be approximated.
-        merge_bilateral: bool (optional)
+        merge_bilateral: bool, optional
             Whether to merge left/right pairs. Default: True.
-        merge_dorsoventral: bool (optional)
+        merge_dorsoventral: bool, optional
             Whether to merge dorsal/ventral pairs, triplets, and quadruples. 
             Default: True.
-        merge_numbered: bool (optional)
+        merge_numbered: bool, optional
             Whether to merge the undistinguishable merged neurons in the 
             retrovesicular ganglion and ventral nerve cord. Note that VB1, VA1, 
             VA11 will not be merged because they are different from the other 
@@ -368,7 +491,7 @@ class NeuroAtlas:
         A: numpy.ndarray
             1-D or 2-D array to be merged. 
         
-        merger: array_like
+        merger: array_like, optional
             merger[i] is the list [k,] of the neuron k that have been merged
             into class i. If None, A is merged based on the internally stored
             merger (that merges completely unmerged neurons into the approximate
@@ -394,7 +517,7 @@ class NeuroAtlas:
                 completeness[m] = True
         
         if not np.all(completeness):
-            print("The merger is incomplete. Returning the unmerged array.")
+            print("*The merger is incomplete. Returning the unmerged array.")
             return A
         
         if len(A.shape)==1:
@@ -692,7 +815,7 @@ class NeuroAtlas:
         
         for i in np.arange(len(self.neuron_ids)):
             if neuron_ids[i]!=self.neuron_ids[i] and neuron_ids[i]!="AWCOF":
-                print("In NeuroAtlas signal propagation",
+                print("*In NeuroAtlas signal propagation",
                       "Something wrong with neuron id",
                       neuron_ids[i],self.neuron_ids[i])
         
@@ -726,7 +849,7 @@ class NeuroAtlas:
         self.q_eq["unc31"] = self.merge(self.q_eq["unc31"])
         if self.merge_bilateral or self.merge_dorsoventral or \
            self.merge_numbered or self.merge_AWC:
-            print("IMPORTANT NOTE: Because of the neuron merging, q values",
+            print("*IMPORTANT NOTE: Because of the neuron merging, q values",
                   "have been merged and AVERAGED. This is not mathematically",
                   "accurate from the statistical point of view. Do not use",
                   "q values like this. New implementation soon.")
@@ -742,7 +865,7 @@ class NeuroAtlas:
         # definition used here
         if not self.funatlas_h5.attrs["kernels_keys"].decode("utf-8") == \
                "g,factor,power_t,branch":
-            print("There is a problem with the ordering of the kernel keys.")
+            print("*There is a problem with the ordering of the kernel keys.")
             print("DO NOT USE THE KERNELS BEFORE SOLVING THE PROBLEM.")
             
         self.sigprop_v = self.funatlas_h5.attrs["time_compiled"].decode("utf-8")
@@ -840,14 +963,14 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        chem_th: int (optional)
+        chem_th: int, optional
             Threshold on the counts of chemical synapses. Default: 0.
-        gap_th: int (optional)
+        gap_th: int, optional
             Threshold on the counts of electrical synapses. Default: 0.
-        exclude_white: bool (optional)
+        exclude_white: bool, optional
             Whether to exclude the older connectome from White et al. 1986.
             Default: False.
-        average: bool (optional)
+        average: bool, optional
             Determines how the different connectomes are combined. If True,
             the average of the connectomes is taken, otherwise they are summed.
         
@@ -864,7 +987,7 @@ class NeuroAtlas:
         # Reminder of the convention for AWCON and AWCOFF, since the anatomical
         # data has AWCL and AWCR.
         if not self.merge_AWC and not self.merge_bilateral and self.verbose:
-            print("In loading the anatomical connectome, the following "+\
+            print("*In loading the anatomical connectome, the following "+\
                   "conventions are used to allow for its comparison with the "+\
                   "other datasets: AWCL->AWCOFF and AWCR->AWCON")
         
@@ -1002,8 +1125,59 @@ class NeuroAtlas:
                 
         return chem, gap
         
-    def get_anatomical_connectome(self):
-        return self.aconn_chem + self.aconn_gap
+    def get_anatomical_connectome(self, signed=False):
+        '''Returns the (signed) anatomical connectome. Signs come from data in
+        wormneuroatlas.SynapseSign.
+        
+        Parameters
+        ----------
+        signed: bool, optional
+            Whether to apply signs to the connectome. Default: False.
+        
+        Returns
+        -------
+        aconn: 2D numpy.ndarray
+            Anatomical connectome.
+            
+        Notes
+        -----
+        The signed anatomical connectome is an approximation. A minus sign is 
+        applied to the connections for which the downstream neuron has 
+        inhibitory ionotropic receptors when considering the neurotransmitters 
+        included in SynapseSign. No minus sign is applied if there are 
+        both inhibitory and excitatory ionotropic receptors. This function 
+        currently does  not know about metabotropic receptors, or about  
+        monodirectional electrical synapses.
+        
+        '''
+        if not signed:            
+            aconn = self.aconn_chem + self.aconn_gap
+        else:
+            chem_sign = self.get_chemical_synapse_sign()
+            cmplx=np.logical_and(np.any(chem_sign==-1,axis=0),
+                                 np.any(chem_sign==1,axis=0))
+            chem_sign = np.nansum(chem_sign,axis=0)
+            chem_sign[cmplx] = 0
+            aconn_chem = np.copy(self.aconn_chem)
+            aconn_chem[chem_sign==-1] *= -1
+            aconn = aconn_chem + self.aconn_gap
+            
+            nt = self.synapsesign.get_neurotransmitters()
+            nt = ", ".join(nt)
+            
+            w = "*get_anatomical_connectome(signed=True): The signed "+\
+                "anatomical connectome is an approximation. A minus sign is "+\
+                "applied to the connections for which the downstream neuron "+\
+                "has inhibitory ionotropic receptors, when considering the "+\
+                "following neurotransmitters: "+nt+". No minus sign is "+\
+                "applied if there are both inhibitory and excitatory "+\
+                "ionotropic receptors. This function currently does not know "+\
+                "about metabotropic receptors, or about monodirectional "+\
+                "electrical synapses."
+            
+            print(w)
+        
+        return aconn
     
     def get_aconn(self,*args,**kwargs):
         return self.get_anatomical_connectome(*args,**kwargs)
@@ -1023,7 +1197,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        s: float (optional)
+        s: float, optional
             Gain, or modulation of the strength of the connections. Default: 1.
         
         Returns
@@ -1054,7 +1228,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        max_hops: int (optional)
+        max_hops: int, optional
             Maximum number of hops to allow for the effective connectivity. If
             None, the effective connectivity is returned at convergence. The
             boolean single-hop anatomical connectome is returned with max_hops
@@ -1093,13 +1267,13 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        max_hops: int (optional)
+        max_hops: int, optional
             Maximum number of hops to allow for the effective connectivity. If
             None, the effective connectivity is returned at convergence. The
             boolean single-hop anatomical connectome is returned with max_hops
             equal to 1. Default: None.
             
-        gain_1: str or int (optional)
+        gain_1: str or int, optional
             Where to set the gain equal to 1 in terms of number of contacts.
             If it is set to 'average', the median number of contacts corresponds
             to gain=1. Default: average.
@@ -1132,7 +1306,7 @@ class NeuroAtlas:
                              np.sum(np.delete(old_c[i,:]*old_c[:,j],(i,j)))
             #c *= orig_max/np.max(c)
             if np.all(c==old_c): 
-                print("Aconnectome converged in",p); break
+                print("*Aconnectome converged in",p); break
             p +=1
             
         return c
@@ -1293,12 +1467,12 @@ class NeuroAtlas:
             Atlas-index or ID of the downstream neuron.
         j: int or str
             Atlas-index or ID of the upstream neuron.
-        max_n_hops: int (optional)
+        max_n_hops: int, optional
             Maximum number of hops in which to perform the search. Default: 1.
-        return_ids: bool (optional)
+        return_ids: bool, optional
             Return also the paths with the IDs of the neurons, instead of their
             atlas-indices. Default: False.
-        exclude_self_loops: bool (optional)
+        exclude_self_loops: bool, optional
             Whether to exclude recurrent paths looping on the downstream
             neuron i.
             
@@ -1393,7 +1567,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        n: int (optional)
+        n: int, optional
             Number of upstream hops at which to search for common upstream 
             neurons. Default 1.
         
@@ -1417,7 +1591,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        shuffling_sorter: 1D numpy.ndarray (optional)
+        shuffling_sorter: 1D numpy.ndarray, optional
             Sorter that determines the suffling. Useful if the shuffler is 
             constructed somewhere else in the code. If None, a random shuffler 
             is generated. Default: None
@@ -1434,7 +1608,7 @@ class NeuroAtlas:
         still useful. 
         '''
         if not self.merge_bilateral:
-            print("inx expression level available only with merge_bilateral")
+            print("*inx expression level available only with merge_bilateral")
             return None
         else:
             f = open(self.module_folder+self.fname_innexins,"r")
@@ -1521,7 +1695,7 @@ class NeuroAtlas:
     def load_neuropeptide_expression_from_file(self):
         '''Legacy.'''
         if not self.merge_bilateral:
-            print("neuropeptide expression level available only with",
+            print("*neuropeptide expression level available only with",
                   "merge_bilateral.")
             return None
         else:
@@ -1556,7 +1730,7 @@ class NeuroAtlas:
     def load_neuropeptide_receptor_expression_from_file(self):
         '''Legacy.'''
         if not self.merge_bilateral:
-            print("neuropeptide receptor expression level available only with",
+            print("*neuropeptide receptor expression level available only with",
                   "merge_bilateral")
             return None
         else:
@@ -1587,6 +1761,111 @@ class NeuroAtlas:
                     
             self.nptr_exp_levels = exp_levels
             self.nptr_genes = genes
+            
+    ###########################################################
+    ###########################################################
+    ###########################################################
+    # INTERFACE TO SYNAPSE SIGN FROM FENYVES ET AL. 2020
+    ###########################################################
+    ###########################################################
+    ###########################################################
+    
+    def get_chemical_synapse_sign(self, nt=None,
+                                  nt_kwargs={"mode":"both"},
+                                  gene_exp_kwargs={}):
+        '''Build the map of the predicted signs of *potential* chemical synapses
+        based on neurotransmitters and ionotropic receptors only. NOTE: This map
+        does not contain information about synapse-localized metabotropic 
+        receptors. NOTE: This map does not know about the connectome, so it
+        will return the sign of potential synapses. You have to multiply this
+        map by the chemical-synapse connectome to actually restrict it to the 
+        chemical synapses that actually exists.
+        
+        Parameters
+        ----------
+        nt: str or array_like of str
+            Neurotransmitters to consider. If None, all available 
+            transmitters are used, as obtained via 
+            SynapseSign.get_neurotransmitters. Defaut: None.
+        nt_kwargs: dict, optional
+            Keywords arguments to be passed to 
+            SynapseSign.get_neurons_producing(). If {"mode":"both"}, the mapping
+            will consider both dominant and alternative neurotransmitters. Other
+            possible values are {"mode":"dominant"} and {"mode":"alternative"}.
+            Default: {"mode":"both"}.
+        gene_exp_kwargs: dict, optional
+            Keywords arguments to be passed to Cengen.get_gene_expression().
+            Default: {}.
+            
+        Returns
+        -------
+        sign: numpy.ndarray 
+            Sign prediction for *potential* chemical synapses. If nt was a list
+            of neurotransmitters, sign[k,i,j] is the predicted sign of the 
+            potential synapse from j to i based on neurotransmitter k. If nt was
+            a single neurotransmitter, then the indexing is only sign[i,j]. 
+            nans are elements for which there is no prediction. 0 are elements
+            for which there are conflicting predictions based on a single 
+            neurotrasmitter, because the downstream neuron expresses both
+            inhibitory and excitatory receptors. 
+            
+        Notes
+        -----
+        To know if the prediction is conflicting because different
+        neurotransmitters produced by the same upstream neuron lead to 
+        different predictions, compare the elements sign[:,i,j]. If both -1 and 
+        +1 are in sign[:,i,j], then there are conflicting predictions based on 
+        different neurotransmitters. This can be done by
+        
+        >>> np.logical_and( np.any(sign==-1,axis=0), np.any(sign==1,axis=0) )
+        '''
+
+        if nt is None:
+            nt = self.synapsesign.get_neurotransmitters()
+        if type(nt)==str:
+            nt = [nt]
+            was_scalar = True
+        else:
+            was_scalar = False
+        
+        sign = np.zeros((len(nt),self.n_neurons,self.n_neurons))*np.nan
+        neu_with_nt = np.empty(len(nt),dtype=object)
+        #neu_with_r_pos = np.empty(len(nt),dtype=object)
+        #neu_with_r_neg = np.empty(len(nt),dtype=object)
+        for i_nt in np.arange(len(nt)):
+            # Get neurons with neurotransmitter
+            nwn = self.synapsesign.get_neurons_producing(nt[i_nt],**nt_kwargs)
+            neu_with_nt[i_nt] = self.ids_to_ais(nwn)
+            if np.any(neu_with_nt[i_nt]==-1):
+                del_neu = nwn[neu_with_nt[i_nt]==-1]
+                print("*Dropping these neurons from SynapseSign.")
+                neu_with_nt[i_nt] = np.delete(neu_with_nt[i_nt],
+                                              neu_with_nt[i_nt]==-1)
+            
+            # Get neurons with corresponding + and - ionotropic receptors
+            r_pos = self.synapsesign.get_receptors_for(nt[i_nt],"pos")
+            r_neg = self.synapsesign.get_receptors_for(nt[i_nt],"neg")
+            gexp_pos = self.get_gene_expression(gene_names=r_pos,
+                                                **gene_exp_kwargs)
+            gexp_neg = self.get_gene_expression(gene_names=r_neg,
+                                                **gene_exp_kwargs)
+            neu_r_pos = np.where(np.sum(gexp_pos,axis=1)>0)[0]
+            neu_r_neg = np.where(np.sum(gexp_neg,axis=1)>0)[0]
+            neu_r_posneg = np.where(np.logical_and(
+                                      np.sum(gexp_pos,axis=1)>0,
+                                      np.sum(gexp_neg,axis=1)>0)
+                                      )[0]
+            
+            for j in neu_with_nt[i_nt]:
+                sign[i_nt][neu_r_pos,j] = 1.0
+                sign[i_nt][neu_r_neg,j] = -1.0
+                sign[i_nt][neu_r_posneg,j] = 0.0
+        
+        if was_scalar:
+            return sign[0]
+        else:
+            return sign
+            
     
     ###########################################################
     ###########################################################
@@ -1648,7 +1927,7 @@ class NeuroAtlas:
         
     def supplement_peptide_gpcr(self):
         self.pepgpcr.supplement()
-        print("Supplementing peptide/GPCR combinations with older datasets.")
+        print("*Supplementing peptide/GPCR combinations with older datasets.")
         
         return None
         
@@ -1677,13 +1956,13 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        neuron_ids_from: array_like of str or None (optional)
+        neuron_ids_from: array_like of str or None, optional
             Array of the IDs of the upstream neuron from which neuropeptide are
             released. If None, all neurons are included. Default: None.
-        neuron_ids_to: array_like of str or None (optional)
+        neuron_ids_to: array_like of str or None, optional
             Array of the IDs of the downstream neuron to which the neuropeptide
             signal. If None, all neurons are includede. Default: None.
-        return_combo: bool (optional)
+        return_combo: bool, optional
             Whether to return also the list of peptide/GPCR combinations for
             each neuron pair. Default: False.
             
@@ -1793,7 +2072,7 @@ class NeuroAtlas:
         
         Parameters
         ----------
-        transmitter_types: str or list of str (optional)
+        transmitter_types: str or list of str, optional
             Types of transmitters to allow (monoamines, neuropeptides, ...).
             If None, all are selected. Default: None.
         args, kwargs
@@ -1806,8 +2085,10 @@ class NeuroAtlas:
             Neuropeptide extrasynaptic connectome.
         
         '''
-        esconn_ma = np.zeros((self.n_neurons, self.n_neurons),dtype=bool)
-        esconn_np = np.zeros((self.n_neurons, self.n_neurons),dtype=bool)
+        #esconn_ma = np.zeros((self.n_neurons, self.n_neurons),dtype=bool)
+        #esconn_np = np.zeros((self.n_neurons, self.n_neurons),dtype=bool)
+        esconn_ma = np.zeros((self.n_neurons, self.n_neurons))
+        esconn_np = np.zeros((self.n_neurons, self.n_neurons))
         
         if transmitter_types is not None:
             if type(transmitter_types)==str:
@@ -1826,9 +2107,11 @@ class NeuroAtlas:
                 continue
             
             if source["transmitter_type"] == "monoamines":
-                esconn_ma = np.logical_or(esconn_ma,esc)
+                #esconn_ma = np.logical_or(esconn_ma,esc)
+                esconn_ma = esconn_ma + esc
             elif source["transmitter_type"] == "neuropeptides":
-                esconn_np = np.logical_or(esconn_np,esc)
+                #esconn_np = np.logical_or(esconn_np,esc)
+                esconn_np = esconn_np + esc
             
             sources_used += 1
         
@@ -1842,10 +2125,10 @@ class NeuroAtlas:
         ----------
         fname: str
             Name of the csv file.
-        transmitter: str or list of str (optional)
+        transmitter: str or list of str, optional
             Requested trasmitters. If None, no restriction is applied. 
             Default: None.
-        receptors: str or list of str (optional)
+        receptors: str or list of str, optional
             Requested receptors. If None, no restriction is applied. 
             Default: None.
         
@@ -1901,7 +2184,6 @@ class NeuroAtlas:
     
     
     def get_esconn(self):
-        print("get_esconn changed ^ to +")
         return self.esconn_ma+self.esconn_np
         
     def get_monoaminergic_connectome(self):
@@ -1962,7 +2244,7 @@ class NeuroAtlas:
         absolute: bool (optioal)
             Whether to sparsify and threshold based on absolute values.
             Default: True.
-        max_i: int (optional)
+        max_i: int, optional
             Maximum number of iterations allowed in estimating the thresold.
             Default: 100.
         
@@ -2027,9 +2309,9 @@ class NeuroAtlas:
             Minimum and maximum alphas.
         nalphaticks: int
             Number of ticks on the alpha axis (x).
-        cmap: matplotlib-accepted colormap (optional)
+        cmap: matplotlib-accepted colormap, optional
             Colormap.
-        around: int (optional)
+        around: int, optional
             np.around -ing precision for ticks. Default: 0.
         '''
         
@@ -2088,33 +2370,33 @@ class NeuroAtlas:
             Matrix to be plotted.
         ids: array_like of str
             IDs to use as tick labels. They are used for both the x and y axes.
-        alphas: 2D numpy.ndarray (optional)
+        alphas: 2D numpy.ndarray, optional
             If not None, it is used to set the gray level of each entry in the
             matrix A. For example, it can represent the statistical confidence
             of the values in the matrix A. Default: None.
-        cmap: str (optional)
+        cmap: str, optional
             Colormap to use. Default: Spectral_r
-        black_diag: bool (optional)
+        black_diag: bool, optional
             Whether to black out diagonal entries. Default: True.
-        fig: matplotlib figure (optional)
+        fig: matplotlib figure, optional
             If not None, this figure will be used for plotting. Default: None.
-        figsize: array_like (2,) (optional)
+        figsize: array_like (2,), optional
             Figure size. Default: (20,20)
-        label: str (optional)
+        label: str, optional
             Label that will appear next to the colorbar. Default: "".
-        alphalabel: str (optional)
+        alphalabel: str, optional
             Label of the alpha/gray level. Default: "".
-        labelx: str (optional)
+        labelx: str, optional
             Label of the x axis. Default: "Stimulated".
-        labely: str (optional)
+        labely: str, optional
             Label of the y axis. Default: "Responding".
-        labelsize: int (optional)
+        labelsize: int, optional
             Label size. Default: 30.
-        ticklabelsize: int (optional)
+        ticklabelsize: int, optional
             Size of the tick labels. Default: 6.
-        alphamin: float (optional)
+        alphamin: float, optional
             Minimum value for the clipping of the alpha values. Default: 0.0.
-        alphamax: float (optional)
+        alphamax: float, optional
             Maximum value for the clipping of the alpha values. Default: 1.0.
             
         Returns
@@ -2124,7 +2406,7 @@ class NeuroAtlas:
         ax: matplotlib axis
             Axis containing the plot.
         cax: matplotlib axis
-            Axis containing the 2D colorbar. Returned only if alphas is not 
+            Axis containing the 2D colorbar. Returned only if alphas is not l
             None.
         '''            
         
@@ -2194,5 +2476,171 @@ class NeuroAtlas:
             return fig,ax,cax
         else:
             return fig,ax
+            
+    
+    def everything_about_to_text(self, d, sigprop_q_th=0.05, sigprop_dff_th=0.1):
+        '''Do a pretty print of the single-neuron results of 
+        NeuroAtlas.everything_about().
         
-
+        Parameters
+        ----------
+        d: dict
+            Result of NeuroAtlas.everything_about() for an individual neuron.
+        sigprop_q_th: float, optional
+            Threshold on the q value (confidence) to select which functional
+            connections to show from the signal propagation map. Default: 0.05,
+            as in Randi et al.
+        sigprop_dff_th: float, optional
+            Threshold on the Delta F/F of the responses to select which 
+            functional connections to show from the signal propagation map. 
+            Note: expressed as a fraction, not percentage (e.g. pass 0.1 for 
+            10%).
+            Default: 0.1.
+        
+        Returns
+        -------
+        s: str
+            Pretty-printing of the results.
+        '''
+        
+        nid = d["neuron_id"]
+        
+        d_sigprop = d["signal_propagation"]
+        # Count number of confident connections
+        sigprop_out_n = np.sum(np.logical_and(
+                                    d_sigprop["q_out"]<sigprop_q_th,
+                                    np.abs(d_sigprop["out"])>=0.1
+                                    ))
+        sigprop_in_n = np.sum(np.logical_and(
+                                    d_sigprop["q_in"]<sigprop_q_th,
+                                    np.abs(d_sigprop["in"])>=0.1
+                                    ))
+        # Sort neurons by strength
+        sigprop_out_conf = np.copy(d_sigprop["out"])
+        sigprop_out_conf[np.isnan(sigprop_out_conf)] = 0.0
+        sigprop_out_conf[d_sigprop["q_out"]>=sigprop_q_th] = 0.0
+        sigprop_out_conf[np.abs(sigprop_out_conf)<sigprop_dff_th] = 0.0
+        sorter = np.argsort(np.abs(sigprop_out_conf))[::-1]
+        sigprop_out_sorted_ids = self.neuron_ids[sorter][:sigprop_out_n]
+        # Sort neurons by strength
+        sigprop_in_conf = np.copy(d_sigprop["in"])
+        sigprop_in_conf[np.isnan(sigprop_in_conf)] = 0.0
+        sigprop_in_conf[d_sigprop["q_in"]>=sigprop_q_th] = 0.0
+        sigprop_in_conf[np.abs(sigprop_in_conf)<0.1] = 0.0
+        sorter = np.argsort(np.abs(sigprop_in_conf))[::-1]
+        sigprop_in_sorted_ids = self.neuron_ids[sorter][:sigprop_in_n]
+        
+        d_aconn = d["anatomical_connectome"]
+        # Count number of connections
+        aconn_out_n = np.sum(np.abs(d_aconn["out"]>0))
+        aconn_in_n = np.sum(np.abs(d_aconn["in"]>0))
+        aconn_chem_out_n = np.sum(np.abs(d_aconn["chem_out"])>0)
+        aconn_chem_in_n = np.sum(np.abs(d_aconn["chem_in"])>0)
+        aconn_gap_out_n = np.sum(np.abs(d_aconn["gap_out"])>0)
+        aconn_gap_in_n = np.sum(np.abs(d_aconn["gap_in"])>0)
+        # Sort neurons by strength
+        sorter = np.argsort(np.abs(d_aconn["out"]))[::-1]
+        aconn_out_sorted_ids = self.neuron_ids[sorter]
+        aconn_out_sorted_ids = aconn_out_sorted_ids[:aconn_out_n]
+        sorter = np.argsort(np.abs(d_aconn["in"]))[::-1]
+        aconn_in_sorted_ids = self.neuron_ids[sorter]
+        aconn_in_sorted_ids = aconn_in_sorted_ids[:aconn_in_n]
+        
+        # Count number of connections
+        d_pepesc = d["peptidergic_connectome"]
+        pepesc_out_n = np.sum(d_pepesc["out"]>0)
+        pepesc_in_n = np.sum(d_pepesc["in"]>0)
+        # Sort neurons by number of putative connections
+        pep_out_sorted_ids = self.neuron_ids[np.argsort(d_pepesc["out"][::-1])]
+        pep_out_sorted_ids = pep_out_sorted_ids[:pepesc_out_n]
+        pep_in_sorted_ids = self.neuron_ids[np.argsort(d_pepesc["in"][::-1])]
+        pep_in_sorted_ids = pep_in_sorted_ids[:pepesc_in_n]
+        
+        d_maesc = d["monoaminergic_connectome"]
+        maesc_out_n = np.sum(d_maesc["out"]>0)
+        maesc_in_n = np.sum(d_maesc["in"]>0)
+        maesc_out_sorted_ids = self.neuron_ids[np.argsort(d_maesc["out"][::-1])]
+        maesc_out_sorted_ids = maesc_out_sorted_ids[:maesc_out_n]
+        maesc_in_sorted_ids = self.neuron_ids[np.argsort(d_maesc["in"][::-1])]
+        maesc_in_sorted_ids = maesc_in_sorted_ids[:maesc_in_n]
+        
+        str2 = lambda x: self.str_array_to_str(x,str0="\t\t\t")
+        
+        s = "\n"+"#"*(7+len(nid))+"\n"+\
+            "Neuron "+nid+"\n"+\
+            "#"*(7+len(nid))+"\n"+\
+            "Signal propagation map:\n"+\
+                "\tShowing high-confidence (q<"+str(sigprop_q_th)+") "+\
+                "connections with |Delta F/F|>"+\
+                str(100*np.around(sigprop_dff_th,2))+"%.\n"+\
+                "\t"+str(sigprop_in_n)+" signal_propagation inputs\n"+\
+                "\t\t"+"From the strongest:\n"+str2(sigprop_in_sorted_ids)+"\n"+\
+                "\t"+str(sigprop_out_n)+" signal_propagation outputs\n"+\
+                "\t\t"+"From the strongest:\n"+str2(sigprop_out_sorted_ids)+"\n"+\
+            "Anatomical connectome:\n"+\
+                "\t"+str(aconn_in_n)+" anatomical inputs\n"+\
+                "\t\t"+"From the strongest:\n"+str2(aconn_in_sorted_ids)+"\n"+\
+                "\t\tof which (some could be overlapping):\n"+\
+                "\t\t"+str(aconn_chem_in_n)+" via chemical synapses\n"+\
+                "\t\t"+str(aconn_gap_in_n)+" via electrical synapses\n"+\
+                "\t"+str(aconn_out_n)+" anatomical outputs\n"+\
+                "\t\t"+"From the strongest:\n"+str2(aconn_out_sorted_ids)+"\n"+\
+                "\t\tof which (some could be overlapping):\n"+\
+                "\t\t"+str(aconn_chem_out_n)+" via chemical synapses\n"+\
+                "\t\t"+str(aconn_gap_out_n)+" via electrical synapses\n"+\
+            "Neuropeptidergic connectome:\n"+\
+                "\t"+str(pepesc_in_n)+" putative inputs\n"+\
+                "\t\t"+"From the strongest:\n"+str2(pep_in_sorted_ids)+"\n"+\
+                "\t"+str(pepesc_out_n)+" putative outputs\n"+\
+                "\t\t"+"From the strongest:\n"+str2(pep_out_sorted_ids)+"\n"+\
+            "Monoaminergic connectome:\n"+\
+                "\t"+str(maesc_in_n)+" putative inputs\n"+\
+                "\t\t"+"From the strongest:\n"+str2(maesc_in_sorted_ids)+"\n"+\
+                "\t"+str(maesc_out_n)+" putative outputs\n"+\
+                "\t\t"+"From the strongest:\n"+str2(maesc_out_sorted_ids)+"\n"
+                
+        return s
+        
+    @staticmethod
+    def str_array_to_str(A, str0="", str1="", sep=" ", linewidth=50, 
+                         newline="\n"):
+        '''Custom pretty printing of a list of strings.
+        
+        Parameters
+        ----------
+        A: array_like of str
+            Input list or array of strings.
+        str0: str, optional
+            String to add at the beginning of each line (e.g. a tabulation).
+            Default: "".
+        str1: str, optional
+            String to add at the end of the string (e.g. a tabulation).
+            Default: "".
+        sep: str, optional
+            Separator. Default: single space.
+        linewidth: int, optional
+            Maximum linewidth. Default: 75.
+        newline: str, optional
+            Newline character. Default: new line character.
+            
+        Returns
+        -------
+        s: str
+            Pretty-printed array.
+            
+        '''
+        s = str0
+        cur_lw = len(str0)
+        for i in np.arange(len(A)):
+            if cur_lw + len(A[i]) > linewidth:
+                s += newline + str0
+                cur_lw = 0
+            s += A[i]
+            cur_lw += len(A[i])
+            
+            if i<len(A)-1:
+                s += sep
+                
+        s += str1
+        
+        return s

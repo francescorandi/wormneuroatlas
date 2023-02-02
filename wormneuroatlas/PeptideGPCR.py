@@ -80,7 +80,7 @@ class PeptideGPCR:
             # use the array as comb_b_ with 
             # trim_isoforms(self.peptide_names) -> self.gpcr_names, 
             # and then check if comb_b_[i] in comb_a_
-            if verbose: print("ADDED THROUGH BENTLEY")
+            if verbose: print("*ADDED THROUGH BENTLEY")
             for cb_ in comb_b_:
                 cb_ = cb_.upper()
                 if cb_ not in comb_a_:
@@ -102,7 +102,7 @@ class PeptideGPCR:
                         for d in data]
             comb_b_ = np.unique(comb_b_,)
             
-            if verbose: print("ADDED THROUGH FROONIKCX")
+            if verbose: print("*ADDED THROUGH FROONIKCX")
             for i in np.arange(len(comb_b_)):
                 cb_ = comb_b_[i]
                 cb_ = cb_.upper()
@@ -156,6 +156,7 @@ class PeptideGPCR:
         trim_isoforms: bool (optional)
             Whether to trim the isoform label from the gpcr sequence id. 
             Default: True.
+            
         '''
         if not trim_isoforms:
             gpcr_seq_ids = np.unique(self.gpcr_seq_ids)
@@ -163,6 +164,48 @@ class PeptideGPCR:
             gpcr_seq_ids = np.unique(self.trim_isoforms(self.gpcr_seq_ids,n=1))
                             
         return gpcr_seq_ids
+        
+    def get_peptide_classes(self):
+        '''Returns the names of the peptides grouped in classes (e.g. all the
+        FLP peptides).
+        
+        Returns
+        -------
+        p_classes: dict
+            For example, p_classes["FLP"] is the array of the FLP peptides.
+            
+        '''
+        p_orig = self.get_peptide_names()
+        p = [a.split("-")[0] for a in p_orig]
+        p, inv_i_p = np.unique(p, return_inverse=True)
+        p_inv = p[inv_i_p]
+        
+        p_classes = {}
+        for j in np.arange(len(p)):
+            p_classes[p[j]] = p_orig[p_inv==p[j]]
+        
+        return p_classes
+        
+    def get_gpcr_classes(self):
+        '''Returns the names of the GPCRs grouped in classes (e.g. all the
+        NPR GPCRs).
+        
+        Returns
+        -------
+        g_classes: dict
+            For example, g_classes["NPR"] is the array of the NPR peptides.
+            
+        '''
+        g_orig = self.get_gpcr_names()
+        g = [a.split("-")[0] for a in g_orig]
+        g, inv_i_g = np.unique(g, return_inverse=True)
+        g_inv = g[inv_i_g]
+        
+        g_classes = {}
+        for j in np.arange(len(g)):
+            g_classes[g[j]] = g_orig[g_inv==g[j]]
+        
+        return g_classes
         
     def get_gpcrs_binding_to(self,peptides,
                              return_seq_ids=False,trim_isoforms=True):
@@ -184,6 +227,7 @@ class PeptideGPCR:
         gpcrs: str or array_like of str
             GPCRs binding to peptides. Whether a str or array_like of str 
             depends on format of input peptides.
+            
         '''
         if type(peptides)==str:
             peptides = [peptides]
@@ -321,7 +365,7 @@ class PeptideGPCR:
                     if len(match)>0:
                         seq_id = self.cached_seq_ids[match[0],1]
                     else:
-                        print("Need cached seq id for",name)
+                        print("*Need cached seq id for",name)
                         seq_id = name
             
             seq_ids.append(seq_id)
@@ -367,7 +411,7 @@ class PeptideGPCR:
                     if len(match)>0:
                         name = self.cached_seq_ids[match[0],0]
                     else:
-                        print("Need cached seq id for",seq_id)
+                        print("*Need cached seq id for",seq_id)
                         name = ""
             
             if seq_id_trimmed:

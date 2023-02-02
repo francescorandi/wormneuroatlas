@@ -97,7 +97,7 @@ class Cengen:
     def get_gene_wbids(self,th):
         return self.gene_wbids[th]
         
-    def get_gene_names(self,th):
+    def get_gene_names(self,th=4):
         return self.gene_names[th]
         
     def get_expression(self, gene_cis=None, gene_wbids=None, 
