@@ -24,6 +24,8 @@ watlas = wa.NeuroAtlas()
 # neuropeptide and GPCR.
 extr_combo_for_fname = sys.argv[1]
 
+ma_esconn = watlas.get_monoaminergic_connectome()
+
 # Read in the requested pairs from the file and store the combo entries for 
 # that pair.
 f_extr_for = open(extr_combo_for_fname,"r")
@@ -40,6 +42,12 @@ for l in f_extr_for.readlines():
         gp_name = watlas.pepgpcr.trim_isoforms(gp_name)
         combo = combo.split("\t")[0]+"\t"+gp_name
         f_extr.write("\t"+combo+"\n")
+    
+    if ma_esconn[pair[0],pair[1]]:
+        f_extr.write("\tand monoamines\n")
+    
+    if len(combos[pair[0],pair[1]])==0 and not ma_esconn[pair[0],pair[1]]:
+        f_extr.write("\tNo direct extrasynaptic connection found. However, this does not exclude indirect connections that go through other neurons.\n")
     
 f_extr_for.close()
 f_extr.close()

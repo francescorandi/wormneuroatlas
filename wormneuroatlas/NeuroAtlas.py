@@ -1,5 +1,28 @@
-import numpy as np, matplotlib.pyplot as plt, json, h5py
+import numpy as np, matplotlib.pyplot as plt, json, h5py, multiprocessing
+from scipy.stats import kstest, wilcoxon, mannwhitneyu
+from multipy.fdr import qvalue
 import wormneuroatlas as wa
+
+def kstest_(arg):
+    # alt should be "less" for enrichment in a compared to b
+    i_g, a, b, alt = arg
+    _, p = kstest(a[:,i_g],b[:,i_g],alternative="less")
+    print(str(i_g)+"\r",end="")
+    return p
+    
+def wilcoxon_(arg):
+    # alt should be "greater" for enrichment in a compared to b
+    i_g, a, b, alt = arg
+    _, p = wilcoxon(a[:,i_g],b[:,i_g],alternative="greater")
+    print(str(i_g)+"\r",end="")
+    return p
+    
+def mannwhitneyu_(arg):
+    # alt should be "greater" for enrichment in a compared to b
+    i_g, a, b, alt = arg
+    _, p = mannwhitneyu(a[:,i_g],b[:,i_g],alternative="greater")
+    print(str(i_g)+"\r",end="")
+    return p
 
 class NeuroAtlas:
     fname_neuron_ids = "neuron_ids.txt"
@@ -45,6 +68,12 @@ class NeuroAtlas:
                        "fname": "esconnectome_neuropeptides_Bentley_2016.csv", 
                        "transmitter_type": "neuropeptides"},
                      ]
+                     
+    innexin_names = ["inx-1","inx-2","inx-3","che-7","inx-5","inx-6","inx-7",
+                     "inx-8","inx-9","inx-10","inx-11","inx-12","inx-13",
+                     "inx-14","inx-15","inx-16","inx-17","inx-18","inx-19",
+                     "inx-20","inx-21","inx-22","eat-5","unc-7","unc-9",]
+    '''List of innexins from https://doi.org/10.1016/j.cell.2018.12.024'''
 
     def __init__(self,merge_bilateral=False,merge_dorsoventral=False,
                  merge_numbered=False,merge_AWC=False,
@@ -129,14 +158,15 @@ class NeuroAtlas:
         self.cengen = wa.Cengen()
         self.pepgpcr = wa.PeptideGPCR()
         self.synapsesign = wa.SynapseSign()
+        self.celllineage = wa.CellLineage()
         # Check that all the neuron IDs in SynapseSign are compatible with 
         # NeuroAtlas.
         '''if np.any(self.ids_to_ais(self.synapsesign.neuron_ids)==-1):
-            print(self.synapsesign.neuron_ids[self.ids_to_ais(self.synapsesign.neuron_ids)==-1])
+            incompatible = self.ids_to_ais(self.synapsesign.neuron_ids)==-1
+            print(self.synapsesign.neuron_ids[incompatible])
             raise AssertionError("The neuron IDs of SynapseSign are not "+\
                                  "compatible with NeuroAtlas anymore.")
-        else:
-            print("OK")'''
+            '''
         
         ###########################################################
         # Manage conversions between different styles of neuron IDs
@@ -539,8 +569,32 @@ class NeuroAtlas:
             
         
         return B
+        
+    def get_bilateral_companions(self,neuron_ids=None):
+        if neuron_ids is None:
+            neuron_ids = self.neuron_ids
             
+        if self.merge_bilateral or self.merge_dorsoventral or self.merge_numbered:
+            print("get_bilateral_companions only without merging in Funatlas object.")
+            return None
             
+        companions = -1*np.ones(len(neuron_ids),dtype=int)
+        for i in np.arange(len(neuron_ids)):
+            nid = neuron_ids[i]
+            nid_app = self.approximate_ids(
+                            [nid],merge_bilateral=True,
+                            merge_dorsoventral=False,merge_numbered=False)[0]
+            for k in np.arange(len(self.neuron_ids)):
+                nid2 = self.neuron_ids[k]
+                if nid2 != nid:
+                    nid2_app = self.approximate_ids(
+                                [nid2],merge_bilateral=True,
+                                merge_dorsoventral=False,merge_numbered=False)[0]
+                    if nid2_app == nid_app:
+                        companions[i] = k
+                
+        return companions
+        
     def load_ganglia(self):
         # Load the whole object
         g_f = open(self.module_folder+self.fname_ganglia,"r")
@@ -898,6 +952,9 @@ class NeuroAtlas:
         
     def get_signal_propagation_q(self,strain="wt"):
         return self.q[strain]
+        
+    def get_signal_propagation_q_eq(self,strain="wt"):
+        return self.q_eq[strain]
         
     def get_kernel(self, i, j, strain="wt"):
         '''Return the average kernel for pair i<-j. Note that if neurons have 
@@ -2288,7 +2345,7 @@ class NeuroAtlas:
     # PLOTTING
     ##########################
     ##########################
-    ##########################   
+    ##########################
     
     @staticmethod
     def make_alphacolorbar(cax,vmin,vmax,tickstep,
@@ -2644,3 +2701,53 @@ class NeuroAtlas:
         s += str1
         
         return s
+        
+    @classmethod
+    def test_gene_exp_difference(cls,a,b,test="KS",mode="enrichment"):
+        #a and b [neu,gene]
+        
+        print("Parallel computing of p values")
+        pool = multiprocessing.Pool(processes=8)
+        if test=="KS":
+            f = kstest_
+            if mode=="enrichment":
+                alt = "less"
+            elif mode=="difference":
+                alt = "two-sided"
+            elif mode=="depletion":
+                alt = "greater"
+
+        elif test=="wilcoxon":
+            f = wilcoxon_
+            if mode=="enrichment":
+                alt = "greater"
+            elif mode=="difference":
+                alt = "two-sided"
+            elif mode=="depletion":
+                alt = "less"
+        
+        elif test=="MW":
+            f = mannwhitneyu_
+            if mode=="enrichment":
+                alt = "greater"
+            elif mode=="difference":
+                alt = "two-sided"
+            elif mode=="depletion":
+                alt = "less"
+        
+        args = [[i,a,b,alt] for i in np.arange(a.shape[1])]
+        ps = pool.map(f, args)
+                
+        _, qs = qvalue(ps)
+        
+        return qs
+        
+    @staticmethod
+    def p_to_stars(p,ns="n.s."):
+        if p<=0.0001: stars = "****"
+        elif p<=0.001: stars="***"
+        elif p<=0.01: stars="**"
+        elif p<=0.05: stars="*"
+        else: stars = ns
+        
+        return stars

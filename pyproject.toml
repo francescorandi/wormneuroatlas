@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wormneuroatlas"
-version = "0.0.6"
+version = "0.0.7"
 authors = [
   { name="Francesco Randi", email="francesco.randi@gmail.com" },
 ]
@@ -23,6 +23,8 @@ dependencies = ["numpy",
                 "pdoc",
                 "pandas",
                 "openpyxl",
+                "multipy @ git+https://github.com/puolival/multipy.git@ef9d2e2ffd6a7e079e29268dfbd59e630dd346b4
+                ",
 ]
 
 [project.urls]

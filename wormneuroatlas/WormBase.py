@@ -94,6 +94,28 @@ class WormBase:
             self.g_seq_id.append(la[3])
             self.g_types.append(la[5])
             
+    def name_to_seq_id(self, gene_name, alt=False):
+        '''Converts a gene name to sequence ID.
+        
+        Parameters
+        ----------
+        gene_name: str
+            Gene name. 
+        alt: bool, optional
+            Whether to allow for alternative names. Default: False.
+            
+        Returns
+        -------
+        seq_id: str
+            Sequence ID.
+        
+        '''
+        wbid = self.name_to_gene_wbid(self, name, alt=alt, dtype=str)
+        i = self.g_wbids.index(wbid)
+        
+        return self.seq_id[i]
+        
+            
     def alt_name_to_gene_wbid(self,alt_name):
         '''Convert alternative gene names to gene ID.
         
@@ -135,10 +157,17 @@ class WormBase:
             WormBase gene ID corresponding to the gene name. g_wbid is None
             if no match has been found.
         '''
-        try: 
-            g_wbid_i = self.g_names.index(name)
+        if name.lower() in self.g_names:
+            g_wbid_i = self.g_names.index(name.lower())
+        elif name in self.g_seq_id:
+            g_wbid_i = self.g_seq_id.index(name)
+        else:
+            g_wbid_i = None
+        
+        if g_wbid_i is not None:
             g_wbid = self.g_wbids[g_wbid_i]
-        except: g_wbid = None
+        else:                
+            g_wbid = None
         
         if g_wbid is None and alt:
             g_wbid = self.alt_name_to_gene_wbid(name)
@@ -186,7 +215,7 @@ class WormBase:
         return genes 
     
     @classmethod 
-    def get_transcripts_ids(cls,gene_wbid):
+    def get_transcripts_ids(cls, gene_wbid, return_lengths=False):
         '''Get transcript isoform IDs for a specific gene. Does not check status
         (e.g. confirmed by cDNA).
         
@@ -213,13 +242,39 @@ class WormBase:
             return None
         result = result["fields"]["gene_models"]["data"]["table"]
         t_ids = []
+        t_lens = []
         for r in result:
-            if "Coding transcript" in r["type"]: 
+            if "Coding transcript" in r["type"]:
                 for m in range(len(r["model"])):
                     t_id = r["model"][m]["id"]
                     t_ids.append(t_id)
+                    t_len = r["length_unspliced"][m]
+                    t_lens.append(t_len)
                         
-        return t_ids
+        if return_lengths:
+            return t_ids, t_lens
+        else:
+            return t_ids
+            
+    def get_longest_transcript(cls, gene_wbid):
+        '''Returns longest transcript for a given gene WormBase ID.
+        
+        Parameters
+        ----------
+        gene_wbid: str or int
+            Gene Wormbase ID.
+        
+        Returns
+        -------
+        longest_transcript: str 
+            ID of the longest transcript.
+            
+        '''
+        
+        t_ids, t_lens = cls.get_transcripts_ids(gene_wbid, return_lengths=True)
+        longest_transcript = t_ids[np.argmax(t_lens)]
+        
+        return longest_transcript
     
     @classmethod
     def get_sequences_from_transcript_id(cls, transcript_wbid):
@@ -241,6 +296,19 @@ class WormBase:
         features = r[strand]["features"]
         
         return {"sequence": sequence.lower(), "features": features}
+        
+    @classmethod
+    def get_gene_description(cls,gene_wbid):
+        url = "http://rest.wormbase.org/rest/field/gene/"+\
+               gene_wbid+"/concise_description"
+           
+        r = cls.http_req(url)
+        descr = r["concise_description"]["data"]["text"]
+        
+        if descr is None:
+            descr = ""
+
+        return descr
         
     @staticmethod
     def http_req(url,parse=True):

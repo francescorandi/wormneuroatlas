@@ -141,7 +141,8 @@ class Cengen:
         ########################################################################
         # Parse the different possible inputs to select which genes to use.
         ########################################################################
-        gene_cis = self.parse_genes_input(th,gene_cis,gene_wbids,gene_names)
+        gene_cis = self.parse_genes_input(th,gene_cis,gene_wbids,gene_names,
+                                          gene_seq_ids)
         unknown_genes = gene_cis==-1
         gene_cis[gene_cis==-1] = 0
 
@@ -296,9 +297,3 @@ class Cengen:
         h5_sliced = h5_sliced[indices1][:,indices2]
         
         return h5_sliced
-            
-            
-         
-                    
-                    
-                    
