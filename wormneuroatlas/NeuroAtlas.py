@@ -1,6 +1,6 @@
 import numpy as np, matplotlib.pyplot as plt, json, h5py, multiprocessing
 from scipy.stats import kstest, wilcoxon, mannwhitneyu
-from multipy.fdr import qvalue
+#from multipy.fdr import qvalue # because of dependency issues
 import wormneuroatlas as wa
 
 def kstest_(arg):
@@ -2704,6 +2704,11 @@ class NeuroAtlas:
         
     @classmethod
     def test_gene_exp_difference(cls,a,b,test="KS",mode="enrichment"):
+        # Commenting out to avoid issue with direct GitHub dependency and
+        # PyPI.
+        print("NeuroAtlas.test_gene_exp_difference() is currently disabled.")
+        return None
+        '''
         #a and b [neu,gene]
         
         print("Parallel computing of p values")
@@ -2740,7 +2745,7 @@ class NeuroAtlas:
                 
         _, qs = qvalue(ps)
         
-        return qs
+        return qs'''
         
     @staticmethod
     def p_to_stars(p,ns="n.s."):
