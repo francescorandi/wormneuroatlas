@@ -1,6 +1,5 @@
 import numpy as np, matplotlib.pyplot as plt, json, h5py, multiprocessing
 from scipy.stats import kstest, wilcoxon, mannwhitneyu
-#from multipy.fdr import qvalue # because of dependency issues
 import wormneuroatlas as wa
 
 def kstest_(arg):
@@ -2707,45 +2706,8 @@ class NeuroAtlas:
         # Commenting out to avoid issue with direct GitHub dependency and
         # PyPI.
         print("NeuroAtlas.test_gene_exp_difference() is currently disabled.")
+        
         return None
-        '''
-        #a and b [neu,gene]
-        
-        print("Parallel computing of p values")
-        pool = multiprocessing.Pool(processes=8)
-        if test=="KS":
-            f = kstest_
-            if mode=="enrichment":
-                alt = "less"
-            elif mode=="difference":
-                alt = "two-sided"
-            elif mode=="depletion":
-                alt = "greater"
-
-        elif test=="wilcoxon":
-            f = wilcoxon_
-            if mode=="enrichment":
-                alt = "greater"
-            elif mode=="difference":
-                alt = "two-sided"
-            elif mode=="depletion":
-                alt = "less"
-        
-        elif test=="MW":
-            f = mannwhitneyu_
-            if mode=="enrichment":
-                alt = "greater"
-            elif mode=="difference":
-                alt = "two-sided"
-            elif mode=="depletion":
-                alt = "less"
-        
-        args = [[i,a,b,alt] for i in np.arange(a.shape[1])]
-        ps = pool.map(f, args)
-                
-        _, qs = qvalue(ps)
-        
-        return qs'''
         
     @staticmethod
     def p_to_stars(p,ns="n.s."):
