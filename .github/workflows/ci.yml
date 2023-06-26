@@ -32,6 +32,12 @@ jobs:
       run: |
         pip install .
 
+    - name: Test some examples
+      run: |
+        cd scripts
+        python peptideGPCR_binding.py
+
+
     - name: Final version info
       run: |
           pip list
