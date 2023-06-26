@@ -32,7 +32,8 @@ jobs:
       run: |
         pip install .
 
-    - name: Test some examples
+    - name: Test some examples      
+      if: ${{ matrix.python-version != '3.7' || matrix.runs-on != 'macos-latest' }} # mac + py3.7 requires build of _bz2 module...
       run: |
         cd scripts
         python peptideGPCR_binding.py
