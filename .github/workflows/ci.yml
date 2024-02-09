@@ -37,6 +37,8 @@ jobs:
       run: |
         cd scripts
         python peptideGPCR_binding.py
+        python signalpropagation_kernels.py
+        python plot_signal_propagation.py
 
 
     - name: Final version info
