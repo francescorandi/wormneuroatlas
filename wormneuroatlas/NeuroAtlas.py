@@ -1953,6 +1953,9 @@ class NeuroAtlas:
         if neuron_ais is not None:
             neuron_cis = self.cengen_is[neuron_ais]
         elif neuron_ids is not None:
+            if type(neuron_ids) == str:
+                # See https://github.com/francescorandi/wormneuroatlas/issues/4
+                neuron_ids = [neuron_ids]
             try: neuron_ids[0] 
             except: neuron_ids = np.array([neuron_ids])
             neuron_ais = self.ids_to_ais(neuron_ids)

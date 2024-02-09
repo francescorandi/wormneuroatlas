@@ -9,5 +9,8 @@ print(gexp[ASGL])
 gexp = watlas.get_gene_expression(gene_names=["npr-1","egl-4"],neuron_ids=["ADAR","ADEL"],th=4)
 print(gexp)
 
+gexp = watlas.get_gene_expression(gene_names=["egl-4"],neuron_ids="ADAL",th=4)
+print(gexp)
+
 gexp = watlas.cengen.get_expression(gene_wbids=["WBGene00001173"],neuron_ids=["ADA","ADE","ADF","ADL","AFD"],th=2)
 print(gexp)
