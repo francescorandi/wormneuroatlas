@@ -974,7 +974,7 @@ class NeuroAtlas:
                         exp.append({"g":k_[0],"factor":k_[1],
                                      "power_t":k_[2],"branch":k_[3]})
                                      
-        if len(exp>0):
+        if len(exp)>0:
             kernel = wa.ExponentialConvolution_min(exp)
             kernel.multiply_scalar_inplace(1.0/count)
             return kernel
