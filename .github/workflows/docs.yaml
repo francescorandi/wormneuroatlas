@@ -46,5 +46,5 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        if: github.repository_owner == 'openworm' # don't run if it's a fork of the original repo
+        if: github.repository_owner == 'francescorandi' # don't run if it's a fork of the original repo
         uses: actions/deploy-pages@v1
