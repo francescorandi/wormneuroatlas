@@ -35,7 +35,9 @@ jobs:
     - name: Test some examples      
       if: ${{ matrix.python-version != '3.7' || matrix.runs-on != 'macos-latest' }} # mac + py3.7 requires build of _bz2 module...
       run: |
-        cd scripts
+        cd scripts 
+        python gene_expression.py
+        python cell_lineage_asymmetry.py
         python peptideGPCR_binding.py
         python signalpropagation_kernels.py
         python plot_signal_propagation.py
