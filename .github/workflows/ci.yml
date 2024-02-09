@@ -2,9 +2,9 @@ name: Test examples
 
 on:
   push:
-    branches: [ main, development, experimental ]
+    branches: [ main, development, experimental, fix* ]
   pull_request:
-    branches: [ main, development, experimental ]
+    branches: [ main, development, experimental, fix* ]
 
 jobs:
   build:
