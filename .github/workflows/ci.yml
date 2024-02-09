@@ -35,9 +35,17 @@ jobs:
     - name: Test some examples      
       run: |
         cd scripts 
+
         python gene_expression.py
-        python cell_lineage_asymmetry.py
         python peptideGPCR_binding.py
+      
+
+    - name: Test more examples   
+      if: ${{ matrix.runs-on == 'ubuntu-latest' }} # Note: these example all generate plots - these tests stalled on Mac/Win on GHA
+      run: |
+        cd scripts 
+
+        python cell_lineage_asymmetry.py
         python signalpropagation_kernels.py
         python plot_signal_propagation.py
 
@@ -45,7 +53,6 @@ jobs:
         ls -alth
         python pep_connectome_extract_combos.py tests/test_pep_pairs.txt 
         more tests/*
-
 
 
     - name: Final version info
