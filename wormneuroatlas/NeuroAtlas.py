@@ -974,7 +974,7 @@ class NeuroAtlas:
                         exp.append({"g":k_[0],"factor":k_[1],
                                      "power_t":k_[2],"branch":k_[3]})
                                      
-        if len(exp>0):
+        if len(exp)>0:
             kernel = wa.ExponentialConvolution_min(exp)
             kernel.multiply_scalar_inplace(1.0/count)
             return kernel
@@ -1953,6 +1953,9 @@ class NeuroAtlas:
         if neuron_ais is not None:
             neuron_cis = self.cengen_is[neuron_ais]
         elif neuron_ids is not None:
+            if type(neuron_ids) == str:
+                # See https://github.com/francescorandi/wormneuroatlas/issues/4
+                neuron_ids = [neuron_ids]
             try: neuron_ids[0] 
             except: neuron_ids = np.array([neuron_ids])
             neuron_ais = self.ids_to_ais(neuron_ids)

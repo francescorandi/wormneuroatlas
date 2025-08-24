@@ -1,0 +1,60 @@
+name: Test examples
+
+on:
+  push:
+    branches: [ main, development, experimental, fix* ]
+  pull_request:
+    branches: [ main, development, experimental, fix* ]
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        runs-on: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+
+    - name: Build package
+      run: |
+        pip install .
+
+    - name: Test some examples      
+      run: |
+        cd scripts 
+
+        python gene_expression.py
+        python peptideGPCR_binding.py
+      
+
+    - name: Test more examples   
+      if: ${{ matrix.runs-on == 'ubuntu-latest' }} # Note: these example all generate plots - these tests stalled on Mac/Win on GHA
+      run: |
+        cd scripts 
+
+        python cell_lineage_asymmetry.py
+        python signalpropagation_kernels.py
+        python plot_signal_propagation.py
+
+        python make_neuropeptidergic_connectome.py 
+        ls -alth
+        python pep_connectome_extract_combos.py tests/test_pep_pairs.txt 
+        more tests/*
+
+
+    - name: Final version info
+      run: |
+          pip list
